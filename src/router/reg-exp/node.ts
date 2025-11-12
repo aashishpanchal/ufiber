@@ -76,7 +76,7 @@ export class Node {
           : ['', '', LABEL_REG_EXP_STR]
         : token === '/*'
           ? ['', '', TAIL_WILDCARD_REG_EXP_STR] // '/path/to/*' is /\/path\/to(?:|/.*)$
-          : token.match(/^\:([^\{\}]+)(?:\{(.+)\})?$/);
+          : token.match(/^:([^{}]+)(?:\{(.+)\})?$/);
 
     let node;
     if (pattern) {
@@ -198,7 +198,7 @@ export class Trie {
      *  - /* wildcard
      *  - character
      */
-    const tokens = path.match(/(?::[^\/]+)|(?:\/\*$)|./g) || [];
+    const tokens = path.match(/(?::[^/]+)|(?:\/\*$)|./g) || [];
     for (let i = groups.length - 1; i >= 0; i--) {
       const [mark] = groups[i];
       for (let j = tokens.length - 1; j >= 0; j--) {

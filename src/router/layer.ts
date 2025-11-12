@@ -1,6 +1,7 @@
 import {UwsContext} from '../core';
 import type {$404Handler, ErrorHandler, Next} from '../types';
 
+// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
 export type Middleware = [[Function, unknown], unknown][] | [[Function]][];
 
 type Options = {

@@ -10,7 +10,7 @@ export const getPattern = (label: string, next?: string): Pattern | null => {
     return '*';
   }
 
-  const match = label.match(/^\:([^\{\}]+)(?:\{(.+)\})?$/);
+  const match = label.match(/^:([^{}]+)(?:\{(.+)\})?$/);
   if (match) {
     const cacheKey = `${label}#${next}`;
     if (!patternCache[cacheKey]) {
@@ -93,9 +93,9 @@ export const checkOptionalParameter = (path: string): string[] | null => {
   let basePath = '';
 
   segments.forEach(segment => {
-    if (segment !== '' && !/\:/.test(segment)) {
+    if (segment !== '' && !/:/.test(segment)) {
       basePath += '/' + segment;
-    } else if (/\:/.test(segment)) {
+    } else if (/:/.test(segment)) {
       if (/\?/.test(segment)) {
         if (results.length === 0 && basePath === '') {
           results.push('/');

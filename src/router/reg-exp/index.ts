@@ -190,6 +190,7 @@ export class RegExpRouter<T> implements Router<T> {
       Object.keys(middleware).forEach(m => {
         if (method === METHOD_NAME_ALL || method === m) {
           Object.keys(middleware[m]).forEach(p => {
+            // eslint-disable-next-line @typescript-eslint/no-unused-expressions
             re.test(p) && middleware[m][p].push([handler, paramCount]);
           });
         }

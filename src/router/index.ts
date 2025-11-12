@@ -34,6 +34,7 @@ export class Router {
   #path = '/';
   router: IRouter<[Handler, RouterRoute]>;
 
+  // eslint-disable-next-line no-unused-private-class-members
   #notFound: $404Handler = onNotFound;
   // Cannot use `#` because it requires visibility at JavaScript runtime.
   #errorHandler: ErrorHandler = onError;

@@ -179,7 +179,9 @@ export class UwsStream extends Writable {
     if (!this.#ctx.aborted && err) {
       try {
         this.#ctx.res.close();
-      } catch {}
+      } catch {
+        // Ignore close errors
+      }
     }
 
     super._destroy(err, cb);
@@ -239,7 +241,9 @@ export class UwsStream extends Writable {
     if (this.#closed || this.#ctx.aborted) return;
     try {
       this.#ctx.res.close();
-    } catch {}
+    } catch {
+      // Ignore close errors
+    }
     this.#closed = true;
   }
 }
