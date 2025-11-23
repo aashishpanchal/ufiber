@@ -1,32 +1,31 @@
 import {SmartRouter} from './smart';
-import {mergePath} from '../utils/url';
+import {mergePath} from '@/utils/url';
 import {TrieRouter} from './trie-tree';
 import {RegExpRouter} from './reg-exp';
-import {METHOD_NAME_ALL, METHOD_NAME_ALL_LOWERCASE, METHODS} from '../consts';
+import {
+  k404,
+  k500,
+  METHODS,
+  METHOD_NAME_ALL,
+  METHOD_NAME_ALL_LOWERCASE,
+} from '@/consts';
 import type {
-  Handler,
-  RouterRoute,
-  $404Handler,
   ErrorHandler,
-  Router as IRouter,
+  Handler,
   Middleware,
-} from '../types';
-import {compose} from './layer';
+  NotFoundHandler,
+  RouterRoute,
+  Router as IRouter,
+} from '@/types';
 
 // Default Handlers
-const onNotFound: $404Handler = ctx =>
-  ctx.status(404).json({
-    message: `Cannot ${ctx.url} on ${ctx.method}`,
-  });
+const onNotFound: NotFoundHandler = ctx =>
+  ctx.status(404).text(`Cannot ${ctx.url} on ${ctx.method}`);
 
 const onError: ErrorHandler = (err, ctx) => {
   console.error(err);
-  ctx.text('Internal Server Error', 500);
+  ctx.status(500).text('Internal Server Error');
 };
-
-// Symbol-based private keys (exported for controlled access)
-export const kNotFound = Symbol('notFound');
-export const kErrorHandler = Symbol('errorHandler');
 
 /**
  * Lightweight, router built on top of a RegExp/Trie based matcher.
@@ -40,24 +39,16 @@ export class Router {
   router: IRouter<[Handler, RouterRoute]>;
 
   // Symbol-based private handlers
-  [kNotFound]: $404Handler = onNotFound;
-  [kErrorHandler]: ErrorHandler = onError;
+  [k404]: NotFoundHandler = onNotFound;
+  [k500]: ErrorHandler = onError;
 
-  /** Register a GET route. */
   get!: (path: string, ...handlers: Handler[]) => this;
-  /** Register a POST route. */
   post!: (path: string, ...handlers: Handler[]) => this;
-  /** Register a PUT route. */
   put!: (path: string, ...handlers: Handler[]) => this;
-  /** Register a DELETE route. */
   delete!: (path: string, ...handlers: Handler[]) => this;
-  /** Register a PATCH route. */
   patch!: (path: string, ...handlers: Handler[]) => this;
-  /** Register a HEAD route. */
   head!: (path: string, ...handlers: Handler[]) => this;
-  /** Register an OPTIONS route. */
   options!: (path: string, ...handlers: Handler[]) => this;
-  /** Register a route matching any HTTP method. */
   all!: (path: string, ...handlers: Handler[]) => this;
 
   constructor() {
@@ -90,11 +81,11 @@ export class Router {
    * router.on(['get', 'post'], ['/user', '/account'], handler);
    * ```
    */
-  on = (
+  on(
     method: string | string[],
     path: string | string[],
     ...handlers: Handler[]
-  ): Router => {
+  ): this {
     for (const p of [path].flat()) {
       this.#path = p;
       for (const m of [method].flat()) {
@@ -104,7 +95,7 @@ export class Router {
       }
     }
     return this;
-  };
+  }
 
   /**
    * Registers middleware handlers.
@@ -120,7 +111,7 @@ export class Router {
    * router.use('/api', apiMiddleware);
    * ```
    */
-  use = (arg1: string | Middleware, ...handlers: Middleware[]): Router => {
+  use(arg1: string | Middleware, ...handlers: Middleware[]): this {
     if (typeof arg1 === 'string') {
       this.#path = arg1;
     } else {
@@ -131,13 +122,13 @@ export class Router {
       this.#addRoute(METHOD_NAME_ALL, this.#path, handler),
     );
     return this;
-  };
+  }
 
   /**
-   * `.onError()` handles an error and returns a customized Response.
+   * Handles an error and returns a customized Response.
    *
    * @param {ErrorHandler} handler - request Handler for error
-   * @returns {Hono} changed Hono instance
+   * @returns {Router} changed Router instance
    *
    * @example
    * ```ts
@@ -147,16 +138,16 @@ export class Router {
    * })
    * ```
    */
-  onError = (handler: ErrorHandler): Router => {
-    this[kErrorHandler] = handler;
+  onError(handler: ErrorHandler): this {
+    this[k500] = handler;
     return this;
-  };
+  }
 
   /**
-   * `.notFound()` allows you to customize a Not Found Response.
+   * Set a custom "not found" handler.
    *
-   * @param {$404Handler} handler - request handler for not-found
-   * @returns {Hono} changed Hono instance
+   * @param {NotFoundHandler} handler - request handler for not-found
+   * @returns {Router} changed Router instance
    *
    * @example
    * ```ts
@@ -165,57 +156,95 @@ export class Router {
    * })
    * ```
    */
-  notFound = (handler: $404Handler): Router => {
-    this[kNotFound] = handler;
+  notFound(handler: NotFoundHandler): this {
+    this[k404] = handler;
     return this;
-  };
-
-  /**
-   * `.route()` allows grouping other Fiber instance in routes.
-   *
-   * @param {string} path - base Path
-   * @param {Router} router - other Router instance
-   * @returns {Router} routed Router instance
-   *
-   * @example
-   * ```ts
-   * const app = new Router()
-   * const app2 = new Router()
-   *
-   * app2.get("/user", (c) => c.text("user"))
-   * app.route("/api", app2) // GET /api/user
-   * ```
-   */
-  route(path: string, router: Router): void {
-    if (router === this) throw new Error('Cannot mount router onto itself');
-    const base = mergePath(this.#basePath, path);
-    // merge routes (Shadow Copy)
-    router.routes.forEach(r => {
-      let handler: Handler;
-      if (router[kErrorHandler] === onError) {
-        handler = r.handler;
-      } else {
-        handler = async (c, next) =>
-          await compose([], {onError: router[kErrorHandler]})(
-            c,
-            () => r.handler(c, next) as any,
-          );
-      }
-      this.#addRoute(r.method, mergePath(base, r.path), handler);
-    });
   }
 
   /**
-   * Internal method that registers a route into the internal matcher.
+   * Mount another Router instance under a base path.
+   *
+   * @param {string} path - base Path
+   * @param {Router} child - other Router instance
+   *
+   * @example
+   * ```ts
+   * const r1= new Router()
+   * const r2 = new Router()
+   *
+   * r2.get("/user", c => c.text("user"))
+   * r1.route("/api", r2) // GET /api/user
+   * ```
    */
+  route(path: string, child: Router): this {
+    const self = this.group(path);
+    // merge routes (Shadow Copy)
+    child.routes.forEach(r => {
+      r['path'] = mergePath(self.#basePath, r.path);
+      // Copy all config routes
+      self.router.add(r.method, r.path, [r.handler, r]);
+      self.routes.push(r);
+    });
+    return this;
+  }
+
+  /**
+   * Group routes under a shared prefix.
+   *
+   * @param prefix - The base path applied to all nested routes.
+   * @param callback - Optional route-configuration callback.
+   * @returns Returns `this` when callback is missing, otherwise `void`.
+   *
+   * @example
+   * # Example - Chainable mode
+   * router.group('/api')
+   *       .get('/ping', c => c.text('pong'));
+   *
+   * # Example - Callback mode
+   * router.group('/api', r => {
+   *   r.get('/users', c => c.text('users'));
+   *   r.post('/posts', c => c.text('created'));
+   * });
+   */
+  group(prefix: string): Router;
+  group(prefix: string, callback: (r: Router) => void): void;
+  group(prefix: string, callback?: (r: Router) => void): void | Router {
+    // Create a scoped "virtual router"
+    const r = this.#clone();
+    // Copy base path
+    r.#basePath = mergePath(this.#basePath, prefix);
+    // Callback mode
+    if (callback) {
+      callback(r);
+      return;
+    }
+    // Chainable mode
+    return r;
+  }
+
+  #clone(): Router {
+    const clone = new Router();
+    // Inherit handlers
+    clone[k404] = this[k404];
+    clone[k500] = this[k500];
+    // Share internal structures
+    clone.router = this.router;
+    clone.routes = this.routes;
+    return clone;
+  }
+
   #addRoute(method: string, path: string, handler: Handler): void {
+    path = mergePath(this.#basePath, path);
     method = method.toUpperCase();
-    const fullPath = mergePath(this.#basePath, path);
+    const errorHandler = this[k500] === onError ? undefined : this[k500];
+    const notFoundHandler = this[k404] === onNotFound ? undefined : this[k404];
     const r: RouterRoute = {
-      path: fullPath,
+      path,
       method,
       handler,
       basePath: this.#basePath,
+      errorHandler,
+      notFoundHandler,
     };
     this.router.add(method, path, [handler, r]);
     this.routes.push(r);

@@ -1,3 +1,5 @@
+import {parseBytes} from './utils/tools';
+
 /**
  * Constant representing all HTTP methods in uppercase.
  */
@@ -27,7 +29,13 @@ export const MESSAGE_MATCHER_IS_ALREADY_BUILT =
   'Can not add a route since the matcher is already built.';
 
 /** Default chunk size (512KB) */
-export const HIGH_WATER_MARK = 512 * 1024;
+export const HIGH_WATER_MARK = parseBytes('512KB');
 
-/** Default bytes size (16MB) */
-export const MAX_BYTES = 16 * 1024 * 1024;
+// Router class symbol
+export const k500 = Symbol('k500');
+export const k404 = Symbol('k404');
+
+// Context class symbol
+export const kCtxRes = Symbol('kCtxRes');
+export const kMatch = Symbol('kMatch');
+export const kCtxReq = Symbol('kCtxReq');

@@ -1,48 +1,49 @@
-import {UwsCtx} from '../core';
-import type {$404Handler, ErrorHandler, Next} from '../types';
+import {Context} from '@/http';
+import {kCtxReq} from '@/consts';
+import type {NotFoundHandler, ErrorHandler, Next, RouterRoute} from '@/types';
 
 // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
-export type Middleware = [[Function, unknown], unknown][] | [[Function]][];
-
-type Options = {
-  onError?: ErrorHandler;
-  onNotFound?: $404Handler;
-};
+type Middleware = [[Function, RouterRoute], unknown][] | [[Function]][];
 
 /**
  * Compose multiple middleware functions into a single async callable function.
  */
 export const compose =
-  (
-    middleware: Middleware,
-    options?: Options,
-  ): ((context: UwsCtx, next?: Next) => Promise<void>) =>
-  (ctx, next) => {
+  (middles: Middleware, onError?: ErrorHandler, onNotFound?: NotFoundHandler) =>
+  (ctx: Context, next?: Next): Promise<void> => {
     const index = -1;
-
-    return dispatch(0);
-
-    async function dispatch(i: number): Promise<void> {
-      if (i <= index) {
-        throw new Error('next() called multiple times');
+    const dispatch = async (i: number): Promise<void> => {
+      if (i <= index) throw new Error('next() called multiple times');
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+      let fn: Function | undefined;
+      let routeMeta: RouterRoute | undefined;
+      if (middles[i]) {
+        fn = middles[i][0][0];
+        routeMeta = middles[i][0][1];
+        ctx[kCtxReq].routeIndex = i;
+      } else {
+        fn = (i === middles.length && next) || undefined;
       }
-      const current = middleware[i];
-      const handler =
-        current?.[0][0] || (i === middleware.length && next) || undefined;
+      // Resolve per-route overrides (fastest possible)
+      onError = routeMeta?.errorHandler ? routeMeta.errorHandler : onError;
+      onNotFound = routeMeta?.notFoundHandler
+        ? routeMeta.notFoundHandler
+        : onNotFound;
       // No more middleware → maybe call onNotFound
-      if (!handler) {
-        if (options?.onNotFound) await options.onNotFound(ctx);
+      if (!fn) {
+        if (onNotFound) await onNotFound(ctx);
         return;
       }
       // Run chain middlewares
       try {
-        await handler(ctx, () => dispatch(i + 1));
+        await fn(ctx, () => dispatch(i + 1));
       } catch (err) {
-        if (options?.onError) {
-          await options.onError(err as Error, ctx);
+        if (onError) {
+          await onError(err as Error, ctx);
         } else {
           throw err;
         }
       }
-    }
+    };
+    return dispatch(0);
   };

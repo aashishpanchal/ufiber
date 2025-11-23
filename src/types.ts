@@ -1,5 +1,6 @@
-import type {UwsCtx} from './core';
-import type {HttpError} from './errors';
+import type {Context} from './http';
+import type {AppOptions} from '../uws';
+import type {ByteString} from './utils/tools';
 
 ////////////////////////////////////////
 //////                            //////
@@ -7,15 +8,53 @@ import type {HttpError} from './errors';
 //////                            //////
 ////////////////////////////////////////
 
-export type Next = () => Promise<void>;
-export type Middleware = (ctx: UwsCtx, next: Next) => Promise<void>;
-export type Handler = (ctx: UwsCtx, next: Next) => void | Promise<void>;
-export type $404Handler = (ctx: UwsCtx) => void | Promise<void>;
-export type ErrorHandler = (
-  err: Error | HttpError,
-  ctx: UwsCtx,
-) => void | Promise<void>;
+export type uFiberOptions = {
+  /**
+   * Optional application name, used internally for context metadata.
+   *
+   * @default "uFiber"
+   *
+   * @example
+   * ```ts
+   * const app = new uFiber({ appName: "MyApp" });
+   * ```
+   */
+  appName?: string;
+
+  /**
+   * Allowed HTTP methods to read data body, default: ["POST", "PUT", "PATCH"].
+   */
+  methods?: string[];
+
+  /**
+   * Maximum request body size.
+   *
+   * Accepts any human-readable byte string: `"16MB"`, `"2GB"`, `"500KB"`, etc.
+   *
+   * @default "16MB"
+   */
+  bodyLimit?: ByteString;
+
+  /**
+   * Options passed directly to uWebSockets.js `App` or `SSLApp`.
+   *
+   * If both `key_file_name` and `cert_file_name` are provided,
+   * uFiber will automatically create an HTTPS (`SSLApp`) server.
+   */
+  uwsOptions?: AppOptions;
+};
+
 export type BufferArray = Buffer<ArrayBuffer>;
+
+export type Next = () => Promise<void>;
+
+export type Handler = (ctx: Context, next: Next) => void | Promise<void>;
+
+export type Middleware = (ctx: Context, next: Next) => Promise<void>;
+
+export type ErrorHandler = (err: Error, ctx: Context) => void | Promise<void>;
+
+export type NotFoundHandler = (ctx: Context) => void | Promise<void>;
 
 ////////////////////////////////////////
 //////                            //////
@@ -43,6 +82,8 @@ export type RouterRoute = {
   method: string;
   basePath: string;
   handler: Handler;
+  errorHandler?: ErrorHandler;
+  notFoundHandler?: NotFoundHandler;
 };
 
 /**
@@ -79,14 +120,17 @@ export interface Router<T> {
  * Type representing a map of parameter indices.
  */
 export type ParamIndexMap = Record<string, number>;
+
 /**
  * Type representing a stash of parameters.
  */
 export type ParamStash = string[];
+
 /**
  * Type representing a map of parameters.
  */
 export type Params = Record<string, string>;
+
 /**
  * Type representing the result of a route match.
  *
