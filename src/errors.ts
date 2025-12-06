@@ -1,4 +1,4 @@
-import {HttpStatus} from './status';
+import {STATUS_TEXT, HttpStatus} from './status';
 import type {ClientErrorStatusCode, ServerErrorStatusCode} from './status';
 
 /** The type for the body message of HTTP errors. */
@@ -16,19 +16,28 @@ type ErrorBody = {
 // Define the type for the status code of HTTP errors
 type Status = ServerErrorStatusCode | ClientErrorStatusCode;
 
+const CLEAN_RE = /^\d+|[^a-zA-Z0-9 ]+/g;
+const nameCache = new Map<number, string>();
+
 /**
  * Get a human-readable error name from the HTTP status code.
  */
 const getErrorName = (status: Status): string => {
+  if (nameCache.has(status)) return nameCache.get(status)!;
   if (status < 400 || status > 511) return 'HttpError';
-  const statusKey = HttpStatus[`${status}_NAME`];
-  if (!statusKey) return 'HttpError';
-  const name = statusKey
-    .toLowerCase()
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, char => char.toUpperCase())
-    .replace(/\s+/g, '');
-  return name.endsWith('Error') ? name : `${name}Error`;
+  const rawName = STATUS_TEXT[status];
+  if (!rawName) return 'HttpError';
+  // Remove apostrophes, punctuation, etc.
+  const cleaned = rawName.replace(CLEAN_RE, '');
+  // Split into words, capitalize each, join together
+  const camel = cleaned
+    .split(/\s+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join('');
+  // Store name if not exist
+  const finalName = camel.endsWith('Error') ? camel : `${camel}Error`;
+  nameCache.set(status, finalName);
+  return finalName;
 };
 
 /**
@@ -58,31 +67,9 @@ export class HttpError extends Error {
     Error.captureStackTrace?.(this, this.constructor);
   }
 
-  static isHttpError(value: unknown): value is HttpError {
-    return value instanceof HttpError;
-  }
-
   getBody(): ErrorBody {
     const {name: error, status} = this;
     const {message, data = null, code = null} = this.options;
     return {status, error, message, data, code};
   }
 }
-
-/**
- * Utility to create custom HttpError subclasses with optional custom naming.
- */
-export const createHttpError = (status: Status, defaultName?: string) =>
-  class extends HttpError {
-    constructor(
-      message: Message,
-      options: {
-        cause?: unknown;
-        code?: string | null;
-        data?: Record<string, unknown> | null;
-        name?: string;
-      } = {},
-    ) {
-      super(status, {message, ...options, name: options.name ?? defaultName});
-    }
-  };

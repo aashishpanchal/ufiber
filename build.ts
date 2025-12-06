@@ -1,7 +1,7 @@
-import fs from 'node:fs';
-import {glob} from 'glob';
 import {rimraf} from 'rimraf';
 import {build, type Options} from 'tsdown';
+
+const isWatch = process.argv.includes('--watch');
 
 const tsdownConfig: Options = {
   dts: true,
@@ -13,16 +13,28 @@ const tsdownConfig: Options = {
   unbundle: true,
   treeshake: true,
   unused: true,
+  watch: isWatch,
 };
 
 const entries: Options[] = [
-  {entry: './src/index.ts', external: [/.*\/uws$/, /^\.\.\/uws/, 'uws']},
+  {
+    entry: [
+      './src/index.ts',
+      './src/consts.ts',
+      './src/core/index.ts',
+      './src/utils/tools.ts',
+      // Middleware
+      './src/middle/cors.ts',
+      './src/middle/proxy.ts',
+      './src/middle/logger.ts',
+    ],
+    external: [/.*\/uws$/, /^\.\.\/uws/, 'uws'],
+  },
 ];
 
 async function buildProject() {
   // Clean previous dist folders
   await rimraf('./dist', {glob: false});
-
   console.log('🚀 Building exstack...');
   for (const entry of entries) {
     // Build main entry point
@@ -30,36 +42,6 @@ async function buildProject() {
   }
   // Remove all .d.mts files
   await rimraf(['./dist/**/*.d.mts', './dist/**/*.d.cts'], {glob: true});
-
-  console.log('✅ Build completed successfully!\n📁 Generated files:');
-
-  // List all files in dist/
-  const _glob = await glob('**/*', {
-    cwd: './dist',
-  });
-  for (const file of _glob) {
-    console.log('  -', file);
-  }
 }
 
-buildProject()
-  .then(async () => {
-    // 🧩 Fix ESM import paths to include `.mjs`
-    const _glob = await glob('./dist/**/*.mjs', {cwd: '.'});
-
-    for (const entry of _glob) {
-      const content = await fs.promises.readFile(entry, 'utf-8');
-      const fixed = content
-        // Only match imports/exports from relative paths
-        .replace(
-          /(import|export)\s*\{([^}]*)\}\s*from\s*['"]((?:\.{1,2}\/)[^'"]+?)(?<!\.mjs)['"]/g,
-          '$1{$2}from"$3.mjs"',
-        )
-        .replace(
-          /(import|export)\s+([\w_$]+)\s+from\s*['"]((?:\.{1,2}\/)[^'"]+?)(?<!\.mjs)['"]/g,
-          '$1 $2 from"$3.mjs"',
-        );
-      await fs.promises.writeFile(entry, fixed);
-    }
-  })
-  .catch(console.error);
+buildProject();

@@ -1,5 +1,4 @@
-import type {HttpError} from './errors';
-import type {UwsContext} from './core';
+import type {Context} from './core';
 
 ////////////////////////////////////////
 //////                            //////
@@ -7,28 +6,18 @@ import type {UwsContext} from './core';
 //////                            //////
 ////////////////////////////////////////
 
-export type Next = () => Promise<void>;
-
-export type Handler = (ctx: UwsContext, next: Next) => void | Promise<void>;
-
-export type Middleware = (ctx: UwsContext, next: Next) => Promise<void>;
-
-export type $404Handler = (ctx: UwsContext) => void | Promise<void>;
-
-export type ErrorHandler = (
-  err: Error | HttpError,
-  ctx: UwsContext,
-) => void | Promise<void>;
-
 export type BufferArray = Buffer<ArrayBuffer>;
+export type Next = () => Promise<void>;
+export type Handler = (ctx: Context, next: Next) => void | Promise<void>;
+export type Middleware = (ctx: Context, next: Next) => Promise<void>;
+export type ErrorHandler = (err: Error, ctx: Context) => void | Promise<void>;
+export type NotFoundHandler = (ctx: Context) => void | Promise<void>;
 
 ////////////////////////////////////////
 //////                            //////
 //////           Router           //////
 //////                            //////
 ////////////////////////////////////////
-
-export type Target = 'trie' | 'regexp' | 'both';
 
 /**
  * Represents a single route definition.
@@ -50,6 +39,8 @@ export type RouterRoute = {
   method: string;
   basePath: string;
   handler: Handler;
+  errHandler: ErrorHandler;
+  nfHandler: NotFoundHandler;
 };
 
 /**
@@ -86,14 +77,17 @@ export interface Router<T> {
  * Type representing a map of parameter indices.
  */
 export type ParamIndexMap = Record<string, number>;
+
 /**
  * Type representing a stash of parameters.
  */
 export type ParamStash = string[];
+
 /**
  * Type representing a map of parameters.
  */
 export type Params = Record<string, string>;
+
 /**
  * Type representing the result of a route match.
  *

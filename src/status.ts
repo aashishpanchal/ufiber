@@ -1,196 +1,155 @@
 /**
- * Enum-style object representing all HTTP status codes.
- *
- * Includes:
- * - Success (2xx)
- * - Redirect (3xx)
- * - Informational (1xx)
- * - Client Error (4xx)
- * - Server Error (5xx)
+ * Pre-cached Http status code
  *
  * @publicApi http-status
  */
 export const HttpStatus = Object.freeze({
-  /** Continue with the request. */
+  // 1xx
   CONTINUE: 100,
-  '100_NAME': 'CONTINUE',
-  /** Switching protocols. */
   SWITCHING_PROTOCOLS: 101,
-  '101_NAME': 'SWITCHING_PROTOCOLS',
-  /** Request is being processed. */
   PROCESSING: 102,
-  '102_NAME': 'PROCESSING',
-  /** Early hints for the client. */
-  EARLYHINTS: 103,
-  '103_NAME': 'EARLY_HINTS',
-  /** Request succeeded. */
+  EARLY_HINTS: 103,
+  // 2xx
   OK: 200,
-  '200_NAME': 'OK',
-  /** Resource created. */
   CREATED: 201,
-  '201_NAME': 'CREATED',
-  /** Request accepted for processing. */
   ACCEPTED: 202,
-  '202_NAME': 'ACCEPTED',
-  /** Non-authoritative information. */
   NON_AUTHORITATIVE_INFORMATION: 203,
-  '203_NAME': 'NON_AUTHORITATIVE_INFORMATION',
-  /** No content to send. */
   NO_CONTENT: 204,
-  '204_NAME': 'NO_CONTENT',
-  /** Content reset. */
   RESET_CONTENT: 205,
-  '205_NAME': 'RESET_CONTENT',
-  /** Partial content delivered. */
   PARTIAL_CONTENT: 206,
-  '206_NAME': 'PARTIAL_CONTENT',
-  /** Multi-Status */
   MULTI_STATUS: 207,
-  '207_NAME': 'MULTI_STATUS',
-  /** Multiple choices available. */
-  AMBIGUOUS: 300,
-  '300_NAME': 'AMBIGUOUS',
-  /** Resource moved permanently. */
+  ALREADY_REPORTED: 208,
+  IM_USED: 226,
+  // 3xx
+  MULTIPLE_CHOICES: 300,
   MOVED_PERMANENTLY: 301,
-  '301_NAME': 'MOVED_PERMANENTLY',
-  /** Resource found at another URI. */
   FOUND: 302,
-  '302_NAME': 'FOUND',
-  /** See other resource. */
   SEE_OTHER: 303,
-  '303_NAME': 'SEE_OTHER',
-  /** Resource not modified. */
   NOT_MODIFIED: 304,
-  '304_NAME': 'NOT_MODIFIED',
-  /** Temporary redirect. */
+  USE_PROXY: 305,
+  UNUSED: 306,
   TEMPORARY_REDIRECT: 307,
-  '307_NAME': 'TEMPORARY_REDIRECT',
-  /** Permanent redirect. */
   PERMANENT_REDIRECT: 308,
-  '308_NAME': 'PERMANENT_REDIRECT',
-  /** Bad request. */
+  // 4xx
   BAD_REQUEST: 400,
-  '400_NAME': 'BAD_REQUEST',
-  /** Authentication required. */
   UNAUTHORIZED: 401,
-  '401_NAME': 'UNAUTHORIZED',
-  /** Payment required. */
   PAYMENT_REQUIRED: 402,
-  '402_NAME': 'PAYMENT_REQUIRED',
-  /** Access forbidden. */
   FORBIDDEN: 403,
-  '403_NAME': 'FORBIDDEN',
-  /** Resource not found. */
   NOT_FOUND: 404,
-  '404_NAME': 'NOT_FOUND',
-  /** Method not allowed. */
   METHOD_NOT_ALLOWED: 405,
-  '405_NAME': 'METHOD_NOT_ALLOWED',
-  /** Not acceptable content. */
   NOT_ACCEPTABLE: 406,
-  '406_NAME': 'NOT_ACCEPTABLE',
-  /** Proxy authentication required. */
   PROXY_AUTHENTICATION_REQUIRED: 407,
-  '407_NAME': 'PROXY_AUTHENTICATION_REQUIRED',
-  /** Request timed out. */
   REQUEST_TIMEOUT: 408,
-  '408_NAME': 'REQUEST_TIMEOUT',
-  /** Conflict with current state. */
   CONFLICT: 409,
-  '409_NAME': 'CONFLICT',
-  /** Resource gone. */
   GONE: 410,
-  '410_NAME': 'GONE',
-  /** Length required. */
   LENGTH_REQUIRED: 411,
-  '411_NAME': 'LENGTH_REQUIRED',
-  /** Precondition failed. */
   PRECONDITION_FAILED: 412,
-  '412_NAME': 'PRECONDITION_FAILED',
-  /** Payload too large. */
   PAYLOAD_TOO_LARGE: 413,
-  '413_NAME': 'PAYLOAD_TOO_LARGE',
-  /** URI too long. */
   URI_TOO_LONG: 414,
-  '414_NAME': 'URI_TOO_LONG',
-  /** Unsupported media type. */
   UNSUPPORTED_MEDIA_TYPE: 415,
-  '415_NAME': 'UNSUPPORTED_MEDIA_TYPE',
-  /** Requested range not satisfiable. */
   REQUESTED_RANGE_NOT_SATISFIABLE: 416,
-  '416_NAME': 'REQUESTED_RANGE_NOT_SATISFIABLE',
-  /** Expectation failed. */
   EXPECTATION_FAILED: 417,
-  '417_NAME': 'EXPECTATION_FAILED',
-  /** I'm a teapot. */
-  I_AM_A_TEAPOT: 418,
-  '418_NAME': 'I_AM_A_TEAPOT',
-  /** Misdirected request. */
-  MISDIRECTED: 421,
-  '421_NAME': 'MISDIRECTED',
-  /** Unprocessable entity. */
+  IM_A_TEAPOT: 418,
+  MISDIRECTED_REQUEST: 421,
   UNPROCESSABLE_ENTITY: 422,
-  '422_NAME': 'UNPROCESSABLE_ENTITY',
-  /** Locked. */
   LOCKED: 423,
-  '423_NAME': 'LOCKED',
-  /** Failed dependency. */
   FAILED_DEPENDENCY: 424,
-  '424_NAME': 'FAILED_DEPENDENCY',
-  /** Too early. */
   TOO_EARLY: 425,
-  '425_NAME': 'TOO_EARLY',
-  /** Upgrade required. */
   UPGRADE_REQUIRED: 426,
-  '426_NAME': 'UPGRADE_REQUIRED',
-  /** Precondition required. */
   PRECONDITION_REQUIRED: 428,
-  '428_NAME': 'PRECONDITION_REQUIRED',
-  /** Too many requests. */
   TOO_MANY_REQUESTS: 429,
-  '429_NAME': 'TOO_MANY_REQUESTS',
-  /** Request header fields too large. */
   REQUEST_HEADER_FIELDS_TOO_LARGE: 431,
-  '431_NAME': 'REQUEST_HEADER_FIELDS_TOO_LARGE',
-  /** Unavailable for legal reasons. */
   UNAVAILABLE_FOR_LEGAL_REASONS: 451,
-  '451_NAME': 'UNAVAILABLE_FOR_LEGAL_REASONS',
-  /** Internal server error. */
+  // 5xx
   INTERNAL_SERVER_ERROR: 500,
-  '500_NAME': 'INTERNAL_SERVER_ERROR',
-  /** Not implemented. */
   NOT_IMPLEMENTED: 501,
-  '501_NAME': 'NOT_IMPLEMENTED',
-  /** Bad gateway. */
   BAD_GATEWAY: 502,
-  '502_NAME': 'BAD_GATEWAY',
-  /** Service unavailable. */
   SERVICE_UNAVAILABLE: 503,
-  '503_NAME': 'SERVICE_UNAVAILABLE',
-  /** Gateway timeout. */
   GATEWAY_TIMEOUT: 504,
-  '504_NAME': 'GATEWAY_TIMEOUT',
-  /** HTTP version not supported. */
   HTTP_VERSION_NOT_SUPPORTED: 505,
-  '505_NAME': 'HTTP_VERSION_NOT_SUPPORTED',
-  /** Variant also negotiates. */
   VARIANT_ALSO_NEGOTIATES: 506,
-  '506_NAME': 'VARIANT_ALSO_NEGOTIATES',
-  /** Insufficient storage. */
   INSUFFICIENT_STORAGE: 507,
-  '507_NAME': 'INSUFFICIENT_STORAGE',
-  /** Loop detected. */
   LOOP_DETECTED: 508,
-  '508_NAME': 'LOOP_DETECTED',
-  /** Bandwidth limit exceeded. */
   BANDWIDTH_LIMIT_EXCEEDED: 509,
-  '509_NAME': 'BANDWIDTH_LIMIT_EXCEEDED',
-  /** Not extended. */
   NOT_EXTENDED: 510,
-  '510_NAME': 'NOT_EXTENDED',
-  /** Network authentication required. */
   NETWORK_AUTHENTICATION_REQUIRED: 511,
-  '511_NAME': 'NETWORK_AUTHENTICATION_REQUIRED',
+});
+
+/**
+ * Pre-cached HTTP status strings.
+ *
+ * @example "200 OK", "404 Not Found", "500 Internal Server Error"
+ */
+export const STATUS_TEXT = Object.freeze({
+  // 1xx
+  100: '100 Continue',
+  101: '101 Switching Protocols',
+  102: '102 Processing',
+  103: '103 Early Hints',
+  // 2xx
+  200: '200 OK',
+  201: '201 Created',
+  202: '202 Accepted',
+  203: '203 Non-Authoritative Information',
+  204: '204 No Content',
+  205: '205 Reset Content',
+  206: '206 Partial Content',
+  207: '207 Multi-Status',
+  208: '208 Already Reported',
+  226: '226 IM Used',
+  // 3xx
+  300: '300 Multiple Choices',
+  301: '301 Moved Permanently',
+  302: '302 Found',
+  303: '303 See Other',
+  304: '304 Not Modified',
+  305: '305 Use Proxy',
+  306: '306 Unused',
+  307: '307 Temporary Redirect',
+  308: '308 Permanent Redirect',
+  // 4xx
+  400: '400 Bad Request',
+  401: '401 Unauthorized',
+  402: '402 Payment Required',
+  403: '403 Forbidden',
+  404: '404 Not Found',
+  405: '405 Method Not Allowed',
+  406: '406 Not Acceptable',
+  407: '407 Proxy Authentication Required',
+  408: '408 Request Timeout',
+  409: '409 Conflict',
+  410: '410 Gone',
+  411: '411 Length Required',
+  412: '412 Precondition Failed',
+  413: '413 Payload Too Large',
+  414: '414 URI Too Long',
+  415: '415 Unsupported Media Type',
+  416: '416 Range Not Satisfiable',
+  417: '417 Expectation Failed',
+  418: "418 I'm a Teapot",
+  421: '421 Misdirected Request',
+  422: '422 Unprocessable Entity',
+  423: '423 Locked',
+  424: '424 Failed Dependency',
+  425: '425 Too Early',
+  426: '426 Upgrade Required',
+  428: '428 Precondition Required',
+  429: '429 Too Many Requests',
+  431: '431 Request Header Fields Too Large',
+  451: '451 Unavailable For Legal Reasons',
+  // 5xx
+  500: '500 Internal Server Error',
+  501: '501 Not Implemented',
+  502: '502 Bad Gateway',
+  503: '503 Service Unavailable',
+  504: '504 Gateway Timeout',
+  505: '505 HTTP Version Not Supported',
+  506: '506 Variant Also Negotiates',
+  507: '507 Insufficient Storage',
+  508: '508 Loop Detected',
+  509: '509 Bandwidth Limit Exceeded',
+  510: '510 Not Extended',
+  511: '511 Network Authentication Required',
 });
 
 /**
@@ -207,7 +166,7 @@ type ValueOf<T> = T[keyof T];
 /**
  * Extracts numeric status codes from {@link HttpStatus}.
  */
-export type HttpStatusCode = Extract<ValueOf<typeof HttpStatus>, number>;
+export type HttpStatusCode = ValueOf<typeof HttpStatus>;
 
 /**
  * @module
@@ -230,7 +189,6 @@ export type SuccessStatusCode =
   | 207
   | 208
   | 226;
-
 /** Redirect (3xx) */
 export type RedirectStatusCode =
   | 300
@@ -242,7 +200,6 @@ export type RedirectStatusCode =
   | 306
   | 307
   | 308;
-
 /** Server Error (5xx) */
 export type ServerErrorStatusCode =
   | 500
@@ -257,7 +214,6 @@ export type ServerErrorStatusCode =
   | 509
   | 510
   | 511;
-
 /**
  * Client Error (4xx)
  *

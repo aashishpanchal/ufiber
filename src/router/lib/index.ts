@@ -1,15 +1,13 @@
-import type {Result, Router} from '../types';
+import {TrieRouter} from './trie-tree';
+import {RegExpRouter} from './reg-exp';
+import {Result, Router} from '@/types';
 import {UnsupportedPathError} from './error';
-import {MESSAGE_MATCHER_IS_ALREADY_BUILT} from '../consts';
+import {MESSAGE_MATCHER_IS_ALREADY_BUILT} from '@/consts';
 
 export class SmartRouter<T> implements Router<T> {
   name: string = 'SmartRouter';
-  #routers: Router<T>[] = [];
+  #routers: Router<T>[] = [new RegExpRouter(), new TrieRouter()];
   #routes?: [string, string, T][] = [];
-
-  constructor(init: {routers: Router<T>[]}) {
-    this.#routers = init.routers;
-  }
 
   add(method: string, path: string, handler: T) {
     if (!this.#routes) throw new Error(MESSAGE_MATCHER_IS_ALREADY_BUILT);

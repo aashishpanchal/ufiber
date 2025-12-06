@@ -1,6 +1,7 @@
-type Decoder = (str: string) => string;
-
-export const tryDecode = (str: string, decoder: Decoder): string => {
+export const tryDecode = (
+  str: string,
+  decoder: (str: string) => string,
+): string => {
   try {
     return decoder(str);
   } catch {
@@ -49,7 +50,6 @@ export const checkOptionalParameter = (path: string): string[] | null => {
       }
     }
   }
-
   // Remove duplicates (just in case)
   return [...new Set(results)];
 };

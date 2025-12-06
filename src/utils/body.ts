@@ -1,5 +1,5 @@
-import uws from '../..//uws';
-import {formatBytes} from '../utils/tools';
+import uws from '../../uws';
+import {formatBytes} from './tools';
 
 export type FileType = {
   bytes: number;
