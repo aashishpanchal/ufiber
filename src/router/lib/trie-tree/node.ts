@@ -23,11 +23,7 @@ export class Node<T> {
   #order: number = 0;
   #params: Record<string, string> = emptyParams;
 
-  constructor(
-    method?: string,
-    handler?: T,
-    children?: Record<string, Node<T>>,
-  ) {
+  constructor(method?: string, handler?: T, children?: Record<string, Node<T>>) {
     this.#children = children || Object.create(null);
     this.#methods = [];
     if (method && handler) {
@@ -90,8 +86,7 @@ export class Node<T> {
     const handlerSets: HandlerParamsSet<T>[] = [];
     for (let i = 0, len = node.#methods.length; i < len; i++) {
       const m = node.#methods[i];
-      const handlerSet = (m[method] ||
-        m[METHOD_NAME_ALL]) as HandlerParamsSet<T>;
+      const handlerSet = (m[method] || m[METHOD_NAME_ALL]) as HandlerParamsSet<T>;
       const processedSet: Record<number, boolean> = {};
       if (handlerSet !== undefined) {
         handlerSet.params = Object.create(null);
@@ -100,10 +95,7 @@ export class Node<T> {
           for (let i = 0, len = handlerSet.possibleKeys.length; i < len; i++) {
             const key = handlerSet.possibleKeys[i];
             const processed = processedSet[handlerSet.score];
-            handlerSet.params[key] =
-              params?.[key] && !processed
-                ? params[key]
-                : (nodeParams[key] ?? params?.[key]);
+            handlerSet.params[key] = params?.[key] && !processed ? params[key] : (nodeParams[key] ?? params?.[key]);
             processedSet[handlerSet.score] = true;
           }
         }
@@ -136,17 +128,9 @@ export class Node<T> {
           if (isLast) {
             // '/hello/*' => match '/hello'
             if (nextNode.#children['*']) {
-              handlerSets.push(
-                ...this.#getHandlerSets(
-                  nextNode.#children['*'],
-                  method,
-                  node.#params,
-                ),
-              );
+              handlerSets.push(...this.#getHandlerSets(nextNode.#children['*'], method, node.#params));
             }
-            handlerSets.push(
-              ...this.#getHandlerSets(nextNode, method, node.#params),
-            );
+            handlerSets.push(...this.#getHandlerSets(nextNode, method, node.#params));
           } else {
             tempNodes.push(nextNode);
           }
@@ -161,9 +145,7 @@ export class Node<T> {
           if (pattern === '*') {
             const astNode = node.#children['*'];
             if (astNode) {
-              handlerSets.push(
-                ...this.#getHandlerSets(astNode, method, node.#params),
-              );
+              handlerSets.push(...this.#getHandlerSets(astNode, method, node.#params));
               astNode.#params = params;
               tempNodes.push(astNode);
             }
@@ -184,9 +166,7 @@ export class Node<T> {
             const m = matcher.exec(restPathString);
             if (m) {
               params[name] = m[0];
-              handlerSets.push(
-                ...this.#getHandlerSets(child, method, node.#params, params),
-              );
+              handlerSets.push(...this.#getHandlerSets(child, method, node.#params, params));
 
               if (Object.keys(child.#children).length) {
                 child.#params = params;
@@ -202,18 +182,9 @@ export class Node<T> {
           if (matcher === true || matcher.test(part)) {
             params[name] = part;
             if (isLast) {
-              handlerSets.push(
-                ...this.#getHandlerSets(child, method, params, node.#params),
-              );
+              handlerSets.push(...this.#getHandlerSets(child, method, params, node.#params));
               if (child.#children['*']) {
-                handlerSets.push(
-                  ...this.#getHandlerSets(
-                    child.#children['*'],
-                    method,
-                    params,
-                    node.#params,
-                  ),
-                );
+                handlerSets.push(...this.#getHandlerSets(child.#children['*'], method, params, node.#params));
               }
             } else {
               child.#params = params;
@@ -232,8 +203,6 @@ export class Node<T> {
       });
     }
 
-    return [
-      handlerSets.map(({handler, params}) => [handler, params] as [T, Params]),
-    ];
+    return [handlerSets.map(({handler, params}) => [handler, params] as [T, Params])];
   }
 }

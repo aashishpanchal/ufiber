@@ -2,23 +2,14 @@ import uWS from '../uws';
 import {Context} from './core';
 import {Pooling} from './utils/pool';
 import {version} from '../package.json';
+import {showBanner} from './utils/show';
 import {Router, compose} from './router';
-import {k404, k500, kMatch} from './consts';
-import {showModernBanner} from './utils/show';
-import {type ByteString, parseBytes} from './utils/tools';
-
-type CallBackUrl = (url: string) => void | Promise<void>;
-type CallBackPath = (path: string) => void | Promise<void>;
+import {k404, k500, kInitMethod, kMatch, kResetMethod} from './consts';
+import {ByteString, NullObject, parseBytes} from './utils/tools';
 
 export type FiberOptions = {
   http3?: boolean;
   appName?: string;
-  /**
-   * Enable object pooling for Context/Request objects.
-   * Improves performance by reusing objects instead of creating new ones.
-   * @default true
-   */
-  pooling?: boolean;
   /**
    * Pool configuration (only used when pooling is enabled)
    */
@@ -69,7 +60,7 @@ export class Fiber extends Router {
   readonly isSSL: boolean;
   #listened?: boolean;
   #bodyLimit?: number;
-  #pooling: Pooling<Context> | null;
+  #pooling: Pooling<Context>;
   readonly #startTime: number = Date.now();
 
   /**
@@ -78,18 +69,21 @@ export class Fiber extends Router {
    * @param options - Fiber configuration options
    *
    * @example
-   * ```
-   * const app = new Fiber({bodyLimit: '64MB', appName: 'MyApp'});
-   * ```
-   * @example
    * ```ts
+   * // With pooling enabled (default)
+   * const app = new Fiber({bodyLimit: '64MB'});
+   *
+   * // Without pooling
+   * const app = new Fiber({pooling: false});
+   *
+   * // With custom pool options
    * const app = new Fiber({
    *   pooling: true,
-   *   poolOptions: {maxSize: 500, preAlloc: 50}
+   *   poolOptions: {maxSize: 500, preAlloc: 10}
    * });
    * ```
    */
-  constructor(config: FiberOptions = Object.create(null)) {
+  constructor(config: FiberOptions = NullObject()) {
     super();
     this.#methods = config.methods;
     this.#appName = config.appName || 'uFiber';
@@ -99,9 +93,7 @@ export class Fiber extends Router {
     const opts = config.uwsOptions ?? {};
     if (config.http3) {
       if (!opts.key_file_name || !opts.cert_file_name)
-        throw new Error(
-          'uwsOptions.key_file_name and uwsOptions.cert_file_name are required for HTTP/3',
-        );
+        throw new Error('uwsOptions.key_file_name and uwsOptions.cert_file_name are required for HTTP/3');
       this.uwsApp = (uWS as any).H3App(opts);
       this.isSSL = true;
     } else if (opts.key_file_name && opts.cert_file_name) {
@@ -112,84 +104,83 @@ export class Fiber extends Router {
       this.isSSL = false;
     }
 
-    if (config.pooling) {
-      const poolOpts = config.poolOptions || {};
-      this.#pooling = new Pooling<Context>(
-        () => new Context(),
-        ctx => ctx.reset(),
-        {
-          maxSize: poolOpts.maxSize,
-          preAlloc: poolOpts.preAlloc,
-        },
-      );
-    } else {
-      this.#pooling = null;
-    }
-  }
-
-  /** @internal Internal method to get context (pooled or new) */
-  #getCtx(res: uWS.HttpResponse, req: uWS.HttpRequest): Context {
-    if (this.#pooling) {
-      const ctx = this.#pooling.acquire();
-      ctx.init(req, res, {
-        isSSL: this.isSSL,
-        methods: this.#methods,
-        appName: this.#appName,
-        bodyLimit: this.#bodyLimit,
-      });
-      return ctx;
-    } else {
-      const ctx = new Context();
-      ctx.init(req, res, {
-        isSSL: this.isSSL,
-        methods: this.#methods,
-        appName: this.#appName,
-        bodyLimit: this.#bodyLimit,
-      });
-      return ctx;
-    }
-  }
-
-  /** @internal Internal method to release context back to pool */
-  #releaseCtx(ctx: Context): void {
-    if (this.#pooling) {
-      const pool = this.#pooling;
-      queueMicrotask(() => pool.release(ctx));
-    }
+    this.#pooling = new Pooling<Context>(
+      () => new Context(),
+      ctx => ctx[kResetMethod](),
+      config.poolOptions,
+    );
   }
 
   /**
-   * Get current pool statistics (only available when pooling is enabled)
+   * Get current pool statistics.
+   * Returns null if pooling is disabled.
    *
    * @example
    * ```ts
    * const stats = app.getPoolStats();
-   * console.log(`Available: ${stats.available}, Created: ${stats.created}`);
+   * if (stats) {
+   *   console.log(`Available: ${stats.available}, Created: ${stats.created}`);
+   * }
    * ```
    */
   getPoolStats() {
-    if (!this.#pooling) {
-      return {
-        created: 0,
-        maxSize: 0,
-        available: 0,
-        poolingEnabled: false,
-      };
-    }
-    return {
-      ...this.#pooling.stats(),
-      poolingEnabled: true,
-    };
+    return this.#pooling?.stats() ?? null;
+  }
+
+  /**
+   * Add WebSocket support.
+   *
+   * @param pattern - URL pattern for WebSocket endpoint
+   * @param behavior - WebSocket behavior configuration
+   *
+   * @example
+   * ```ts
+   * app.ws('/chat', {
+   *   message: (ws, message, opCode) => {
+   *     ws.send(message);
+   *   },
+   *   open: (ws) => {
+   *     console.log('WebSocket connected');
+   *   }
+   * });
+   * ```
+   */
+  ws<T>(pattern: string, behavior: uWS.WebSocketBehavior<T>): void {
+    this.uwsApp.ws(pattern, behavior);
+  }
+
+  /** @internal Internal method to get context (pooled or new) */
+  #getCtx(res: uWS.HttpResponse, req: uWS.HttpRequest): Context {
+    const ctx = this.#pooling.acquire();
+    // Initialize context first
+    ctx[kInitMethod](req, res, {
+      isSSL: this.isSSL,
+      methods: this.#methods,
+      appName: this.#appName,
+      bodyLimit: this.#bodyLimit,
+    });
+    // Setup abort handler
+    res.onAborted(() => {
+      if (ctx.raw !== res || ctx.aborted || ctx.finished) return;
+      ctx.req.destroy();
+      ctx.events.emit('abort');
+      ctx.events.emit('close');
+      ctx.aborted = true;
+      ctx.finished = true;
+    });
+    return ctx;
+  }
+
+  /** @internal Internal method to release context back to pool */
+  #releaseCtx(ctx: Context): void {
+    queueMicrotask(() => this.#pooling.release(ctx));
   }
 
   /** @internal Internal method to attach uWS handlers and route dispatcher */
   #createReqHandler() {
     this.uwsApp.any('/*', (res, req) => {
       const ctx = this.#getCtx(res, req);
-      const matchResult = this.router.match(
-        ctx.req.method === 'HEAD' ? 'GET' : ctx.req.method,
-        ctx.req.path,
-      );
+      const matchResult = this.router.match(ctx.req.method === 'HEAD' ? 'GET' : ctx.req.method, ctx.req.path);
       ctx.req[kMatch] = matchResult;
       const handlers = matchResult[0];
       // Release context after response finishes
@@ -220,9 +211,7 @@ export class Fiber extends Router {
       try {
         const result = compose(handlers)(ctx);
         if (result instanceof Promise) {
-          result
-            .catch(err => this[k500](err as Error, ctx))
-            .finally(releaseCtx);
+          result.catch(err => this[k500](err as Error, ctx)).finally(releaseCtx);
         } else {
           releaseCtx();
         }
@@ -234,148 +223,90 @@ export class Fiber extends Router {
   }
 
   /**
-   * Start listening on a port, hostname, callback, or default.
+   * Start listening on a port and hostname.
    *
    * @example
    * ```ts
    * // 1. Listen with no config (OS picks a random port)
-   * app.listenTcp((url) => {
-   *   console.log('Server started at', url);
-   * });
-   * ```
-   *
-   * @example
-   * ```ts
+   * app.listen();
+   
    * // 2. Listen on port only
-   * app.listenTcp(3000, (url) => {
-   *   console.log('Listening on', url);
-   * });
-   * ```
-   *
-   * @example
-   * ```ts
+   * app.listen(3000);
+   
    * // 3. Listen on port + hostname
-   * app.listenTcp(3000, '127.0.0.1', (url) => {
-   *   console.log('Listening on', url);
-   * });
+   * app.listen(3000, '127.0.0.1');
    * ```
    */
-  listenTcp(cb?: CallBackUrl): void;
-  listenTcp(port: number, cb?: CallBackUrl): void;
-  listenTcp(port: number, host: string, cb?: CallBackUrl): void;
-  listenTcp(
-    port?: number | string | CallBackUrl,
-    host?: string | CallBackUrl,
-    cb?: CallBackUrl,
-  ): void {
+  listen(): void;
+  listen(port: number): void;
+  listen(port: number, host: string): void;
+  listen(port?: number, host?: string): void {
     if (this.#listened) {
       throw new Error('Already server running on tcp!');
     }
     this.#listened = true;
     this.#createReqHandler();
-    // listen(callback)
-    if (!cb && typeof port === 'function') {
-      cb = port;
-      port = 0; // OS chooses port
-    }
-    // listen(port, callback)
-    if (typeof host === 'function') {
-      cb = host;
-      host = undefined;
-    }
     // Normalize values
     const finalPort = typeof port === 'number' ? port : 0;
     const finalHost = typeof host === 'string' ? host : '0.0.0.0';
-    this.#listenTcp(finalPort, finalHost, cb);
+    this.#listenTcp(finalPort, finalHost);
   }
 
   /**
    * Listen on a Unix domain socket. Uses `/tmp/ufiber.sock` by default.
    *
    * @example
-   * // 1. Listen with no config
    * ```ts
-   * app.listenUnix(path => {
-   *   console.log('Listening on unix socket:', path);
-   * });
-   * ```
-   *
-   * @example
-   * // 2. Listen custom path .sock
-   * ```ts
-   * app.listenUnix("/tmp/chat.sock", path => {
-   *   console.log('Listening on', path);
-   * });
+   * // 1. Listen with default path
+   * app.listenUnix();
+   
+   * // 2. Listen on custom path
+   * app.listenUnix("/tmp/chat.sock");
    * ```
    */
-  listenUnix(cb?: CallBackPath): void;
-  listenUnix(path: string | CallBackPath, cb?: CallBackPath): void;
-  listenUnix(path?: string | CallBackPath, cb?: CallBackPath): void {
+  listenUnix(): void;
+  listenUnix(path: string): void;
+  listenUnix(path?: string): void {
     if (this.#listened) {
       throw new Error('Already server running on unix!');
     }
     this.#listened = true;
     this.#createReqHandler();
-    // listenUnix(callback)
-    if (!cb && typeof path === 'function') {
-      cb = path;
-      path = undefined!;
-    }
     const sockPath = typeof path === 'string' ? path : '/tmp/ufiber.sock';
     // Normalize: allow "sock", "./sock", "/full/path.sock"
-    const normalized =
-      sockPath.startsWith('/') || sockPath.startsWith('./')
-        ? sockPath
-        : `./${sockPath}`;
-    this.#listenUnix(normalized, cb);
+    const normalized = sockPath.startsWith('/') || sockPath.startsWith('./') ? sockPath : `./${sockPath}`;
+    this.#listenUnix(normalized);
   }
 
   /** @internal Internal method to start server on tcp. */
-  #listenTcp(port: number, host: string, cb?: CallBackUrl) {
+  #listenTcp(port: number, host: string) {
     this.uwsApp.listen(host, port, socket => {
-      if (!socket)
-        throw new Error(
-          `Failed to listen on port ${port}.  No permission or already in use.`,
-        );
+      if (!socket) throw new Error(`Failed to listen on port ${port}.  No permission or already in use.`);
       const protocol = this.isSSL ? 'https' : 'http';
       const realPort = uWS.us_socket_local_port(socket);
       const url = `${protocol}://${host}:${realPort}`;
-      // If callback provided → use it (override)
-      if (cb) {
-        cb(url);
-      } else {
-        // No callback → show default banner
-        showModernBanner({
-          url,
-          port: realPort,
-          host,
-          version,
-          startTime: this.#startTime,
-        });
-      }
+      showBanner({
+        url,
+        host,
+        version,
+        port: realPort,
+        startTime: this.#startTime,
+      });
     });
   }
 
   /** @internal Internal method to start server on unix-socket. */
-  #listenUnix(path: string, cb?: CallBackPath) {
-    const normalized =
-      path.startsWith('/') || path.startsWith('./') ? path : `./${path}`;
+  #listenUnix(path: string) {
+    const normalized = path.startsWith('/') || path.startsWith('./') ? path : `./${path}`;
     this.uwsApp.listen_unix(socket => {
-      if (!socket)
-        throw new Error(`Failed to listen on unix socket: ${normalized}`);
+      if (!socket) throw new Error(`Failed to listen on unix socket: ${normalized}`);
       const display = normalized.replace(/^(\.\/|\/)+/, '');
       const url = `unix://${display}`;
-      // If callback provided → use it (override)
-      if (cb) {
-        cb(url);
-      } else {
-        // No callback → show default banner
-        showModernBanner({
-          url,
-          version,
-          startTime: this.#startTime,
-        });
-      }
+      showBanner({
+        url,
+        version,
+        startTime: this.#startTime,
+      });
     }, normalized);
   }
 }

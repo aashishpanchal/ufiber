@@ -1,32 +1,15 @@
 import {SmartRouter} from './lib';
 import {mergePath} from '@/utils/url';
-import {
-  k404,
-  k500,
-  METHODS,
-  METHOD_NAME_ALL,
-  METHOD_NAME_ALL_LOWERCASE,
-} from '@/consts';
-import type {
-  Handler,
-  RouterRoute,
-  ErrorHandler,
-  NotFoundHandler,
-  Middleware,
-} from '@/types';
+import {k404, k500, METHODS, METHOD_NAME_ALL, METHOD_NAME_ALL_LOWERCASE} from '@/consts';
+import type {Handler, RouterRoute, ErrorHandler, NotFoundHandler, Middleware} from '@/types';
 
-// Default Handlers
-const onNotFound: NotFoundHandler = ctx =>
-  ctx.text(`Cannot ${ctx.req.path} on ${ctx.req.method}`, 404);
+const onNotFound: NotFoundHandler = ctx => ctx.text(`Cannot ${ctx.req.path} on ${ctx.req.method}`, 404);
 
 const onError: ErrorHandler = (err, ctx) => {
   console.error(err);
   ctx.text('Internal Server Error', 500);
 };
 
-/**
- * Lightweight, router built on top of a RegExp/Trie based matcher.
- */
 export class Router {
   #path = '/';
   #basePath = '/';
@@ -71,11 +54,7 @@ export class Router {
    * router.on(['get', 'post'], ['/user', '/account'], handler);
    * ```
    */
-  on(
-    method: string | string[],
-    prefix: string | string[],
-    ...handlers: Handler[]
-  ): this {
+  on(method: string | string[], prefix: string | string[], ...handlers: Handler[]): this {
     for (const p of [prefix].flat()) {
       this.#path = p;
       for (const m of [method].flat()) {
@@ -106,9 +85,7 @@ export class Router {
       this.#path = '*';
       handlers.unshift(arg1);
     }
-    handlers.forEach(handler =>
-      this.#addRoute(METHOD_NAME_ALL, this.#path, handler),
-    );
+    handlers.forEach(handler => this.#addRoute(METHOD_NAME_ALL, this.#path, handler));
     return this;
   }
 

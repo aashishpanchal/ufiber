@@ -1,5 +1,6 @@
-import {COLORS, kCtxRes} from '@/consts';
-import {write} from '@/utils/tools';
+import ansis from 'ansis';
+import {kCtxRes} from '@/consts';
+import {NullObject, write} from '@/utils/tools';
 import type {Middleware} from '@/types';
 
 type Print = (msg: string) => void;
@@ -15,26 +16,65 @@ type Options = {
 
 const colorStatus = (status: number) => {
   const c = (status / 100) | 0;
-  if (c === 2) return COLORS.green + status + COLORS.reset;
-  if (c === 3) return COLORS.cyan + status + COLORS.reset;
-  if (c === 4) return COLORS.yellow + status + COLORS.reset;
-  if (c === 5) return COLORS.red + status + COLORS.reset;
+  if (c === 2) return ansis.green(status);
+  if (c === 3) return ansis.cyan(status);
+  if (c === 4) return ansis.yellow(status);
+  if (c === 5) return ansis.red(status);
   return status;
 };
 
+const colorMethod = (method: string) => {
+  switch (method) {
+    case 'GET':
+      return ansis.blue(method);
+    case 'POST':
+      return ansis.green(method);
+    case 'PUT':
+      return ansis.yellow(method);
+    case 'DELETE':
+      return ansis.red(method);
+    case 'PATCH':
+      return ansis.magenta(method);
+    case 'HEAD':
+      return ansis.cyan(method);
+    case 'OPTIONS':
+      return ansis.gray(method);
+    default:
+      return ansis.white(method);
+  }
+};
+
+const formatTime = () => {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  const s = String(now.getSeconds()).padStart(2, '0');
+  return ansis.gray(`${h}:${m}:${s}`);
+};
+
+const formatDuration = (ms: number) => {
+  if (ms < 100) return ansis.green(`${ms}ms`);
+  if (ms < 500) return ansis.yellow(`${ms}ms`);
+  if (ms < 1000) return ansis.magenta(`${ms}ms`);
+  return ansis.red(`${(ms / 1000).toFixed(2)}s`);
+};
+
 /**
- * Request logger middleware.
- * Logs method, path, status code, and response time.
+ * Request logger middleware with incoming/outgoing logs.
  *
  * @example
  * ```ts
  * // Basic usage
  * app.use(logger());
- * // Output: GET /users → 200 45ms
+ * // Output:
+ * // --> GET /users
+ * // <-- GET /users 200 45ms
  *
  * // With IP address
  * app.use(logger({ showIp: true }));
- * // Output: [192.168.1.1] GET /users → 200 45ms
+ * // Output:
+ * // --> GET /users [192.168.1.1]
+ * // <-- GET /users 200 45ms
  *
  * // Ignore health checks
  * app.use(logger({ ignore: ['/health', '/metrics'] }));
@@ -45,26 +85,36 @@ const colorStatus = (status: number) => {
  * }));
  * ```
  */
-export const logger = (opts: Options = Object.create(null)): Middleware => {
+export const logger = (opts: Options = NullObject()): Middleware => {
   const ignore = opts.ignore ?? [];
-  // Pre-compute ignore check to avoid repeated array operations
-  const checkIgnore = ignore.length
-    ? (path: string) => ignore.some(i => path.startsWith(i))
-    : () => false;
+  const checkIgnore = ignore.length ? (path: string) => ignore.some(i => path.startsWith(i)) : () => false;
+
+  const print = (msg: string) => {
+    if (opts.printer) opts.printer(msg);
+    else write(msg + '\n', true);
+  };
+
   return async (ctx, next) => {
     const {method, path} = ctx.req;
     if (checkIgnore(path)) return await next();
-    // Fetch IP before response to avoid uWS access error
+
     const ip = opts.showIp ? ctx.ip : null;
+    const time = formatTime();
+    const m = colorMethod(method);
+    const ipStr = ip ? ansis.gray(` [${ip}]`) : '';
+
+    // Incoming request
+    print(`${time} ${ansis.gray('-->')} ${m} ${ansis.white(path)}${ipStr}`);
+
     const start = Date.now();
     await next();
     const delta = Date.now() - start;
-    const ms = COLORS.gray + `${delta}ms` + COLORS.reset;
+
+    // Outgoing response
     const status = ctx[kCtxRes].statusCode;
     const s = colorStatus(status);
-    const ipStr = ip ? COLORS.gray + `[${ip}] ` + COLORS.reset : '';
-    const str = `${ipStr}${method} ${path} → ${s} ${ms}`;
-    if (opts.printer) opts.printer(str);
-    else queueMicrotask(() => write(str + '\n'));
+    const dur = formatDuration(delta);
+
+    print(`${time} ${ansis.gray('<--')} ${m} ${ansis.white(path)} ${s} ${dur}`);
   };
 };

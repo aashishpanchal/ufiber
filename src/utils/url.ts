@@ -1,7 +1,4 @@
-export const tryDecode = (
-  str: string,
-  decoder: (str: string) => string,
-): string => {
+export const tryDecode = (str: string, decoder: (str: string) => string): string => {
   try {
     return decoder(str);
   } catch {
@@ -73,8 +70,6 @@ export const mergePath: (...paths: string[]) => string = (
     sub = mergePath(sub as string, ...rest);
   }
   return `${base?.[0] === '/' ? '' : '/'}${base}${
-    sub === '/'
-      ? ''
-      : `${base?.at(-1) === '/' ? '' : '/'}${sub?.[0] === '/' ? sub.slice(1) : sub}`
+    sub === '/' ? '' : `${base?.at(-1) === '/' ? '' : '/'}${sub?.[0] === '/' ? sub.slice(1) : sub}`
   }`;
 };

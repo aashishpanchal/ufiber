@@ -55,11 +55,7 @@ export class HttpError extends Error {
       cause?: unknown;
     } = {message: 'HttpError'},
   ) {
-    super(
-      typeof options.message === 'string'
-        ? options.message
-        : getErrorName(status),
-    );
+    super(typeof options.message === 'string' ? options.message : getErrorName(status));
     // Allow developer to override error name
     this.name = options.name ?? getErrorName(status);
 
@@ -73,3 +69,66 @@ export class HttpError extends Error {
     return {status, error, message, data, code};
   }
 }
+
+/**
+ * Utility function to create custom error classes.
+ * @param status - HTTP status code.
+ * @returns - A new error class.
+ * @example
+ * const NotFoundError = createHttpErrorClass(HttpStatus.NOT_FOUND);
+ */
+export const createHttpErrorClass = (status: Status) =>
+  class extends HttpError {
+    constructor(
+      message: Message,
+      options: {
+        cause?: unknown;
+        code?: string | null;
+        data?: Record<string, unknown> | null;
+      } = {},
+    ) {
+      super(status, {message, ...options});
+    }
+  };
+
+/**
+ * Represents a Bad Request HTTP error (400).
+ * @extends {HttpError}
+ */
+export const BadRequestError = createHttpErrorClass(HttpStatus.BAD_REQUEST);
+
+/**
+ * Represents a Conflict HTTP error (409).
+ * @extends {HttpError}
+ */
+export const ConflictError = createHttpErrorClass(HttpStatus.CONFLICT);
+
+/**
+ * Represents a Forbidden HTTP error (403).
+ * @extends {HttpError}
+ */
+export const ForbiddenError = createHttpErrorClass(HttpStatus.FORBIDDEN);
+
+/**
+ * Represents a Not Found HTTP error (404).
+ * @extends {HttpError}
+ */
+export const NotFoundError = createHttpErrorClass(HttpStatus.NOT_FOUND);
+
+/**
+ * Represents an UnAuthorized HTTP error (401).
+ * @extends {HttpError}
+ */
+export const UnAuthorizedError = createHttpErrorClass(HttpStatus.UNAUTHORIZED);
+
+/**
+ * Represents an Internal Server Error HTTP error (500).
+ * @extends {HttpError}
+ */
+export const InternalServerError = createHttpErrorClass(HttpStatus.INTERNAL_SERVER_ERROR);
+
+/**
+ * Represents an Content Too Larger Error HTTP error (413).
+ * @extends {HttpError}
+ */
+export const ContentTooLargeError = createHttpErrorClass(HttpStatus.PAYLOAD_TOO_LARGE);

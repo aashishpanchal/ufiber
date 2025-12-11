@@ -5,13 +5,8 @@ type CORSOptions = {
   origin:
     | string
     | string[]
-    | ((
-        origin: string,
-        c: Context,
-      ) => Promise<string | undefined | null> | string | undefined | null);
-  allowMethods?:
-    | string[]
-    | ((origin: string, c: Context) => Promise<string[]> | string[]);
+    | ((origin: string, c: Context) => Promise<string | undefined | null> | string | undefined | null);
+  allowMethods?: string[] | ((origin: string, c: Context) => Promise<string[]> | string[]);
   allowHeaders?: string[];
   maxAge?: number;
   credentials?: boolean;
@@ -115,10 +110,10 @@ export const corsOrigin = (options?: CORSOptions): Middleware => {
         ctx.header('Access-Control-Allow-Headers', headers.join(','));
         ctx.header('Vary', 'Access-Control-Request-Headers', true);
       }
-      // Remove content headers for OPTIONS
+      ctx.status(204);
       ctx.header('Content-Type');
       ctx.header('Content-Length');
-      return ctx.status(204).end();
+      return ctx.end();
     }
 
     await next();

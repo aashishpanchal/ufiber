@@ -8,19 +8,11 @@ const _decodeURI = (value: string) => {
     value = value.replace(/\+/g, ' ');
   }
   // Only decode if '%' exists
-  return value.indexOf('%') !== -1
-    ? tryDecode(value, decodeURIComponent)
-    : value;
+  return value.indexOf('%') !== -1 ? tryDecode(value, decodeURIComponent) : value;
 };
 
 /**
  * Parse query parameters from a URL or raw query string.
- *
- * Overloads:
- * - getQuery(url) → returns all params as { key: value }
- * - getQuery(url, key) → returns a single value or undefined
- * - getQuery(url, key, true) → returns array values for the key
- * - getQuery(url, undefined, true) → returns all params as arrays
  *
  * @param url - Full URL
  * @param key - Optional key to extract
@@ -28,16 +20,8 @@ const _decodeURI = (value: string) => {
  */
 export function getQuery(url: string): Record<string, string>;
 export function getQuery(url: string, key: string): string | undefined;
-export function getQuery(
-  url: string,
-  key: string,
-  multiple: true,
-): string[] | undefined;
-export function getQuery(
-  url: string,
-  key: undefined,
-  multiple: true,
-): Record<string, string[]>;
+export function getQuery(url: string, key: string, multiple: true): string[] | undefined;
+export function getQuery(url: string, key: undefined, multiple: true): Record<string, string[]>;
 export function getQuery(url: string, key?: string, multiple?: boolean): any {
   let encoded;
 
@@ -56,9 +40,7 @@ export function getQuery(url: string, key?: string, multiple?: boolean): any {
       if (trailingKeyCode === 61) {
         const valueIndex = keyIndex + key.length + 2;
         const endIndex = url.indexOf('&', valueIndex);
-        return _decodeURI(
-          url.slice(valueIndex, endIndex === -1 ? undefined : endIndex),
-        );
+        return _decodeURI(url.slice(valueIndex, endIndex === -1 ? undefined : endIndex));
       } else if (trailingKeyCode == 38 || isNaN(trailingKeyCode)) {
         return '';
       }
@@ -84,11 +66,7 @@ export function getQuery(url: string, key?: string, multiple?: boolean): any {
     }
     let name = url.slice(
       keyIndex + 1,
-      valueIndex === -1
-        ? nextKeyIndex === -1
-          ? undefined
-          : nextKeyIndex
-        : valueIndex,
+      valueIndex === -1 ? (nextKeyIndex === -1 ? undefined : nextKeyIndex) : valueIndex,
     );
     if (encoded) {
       name = _decodeURI(name);
@@ -104,10 +82,7 @@ export function getQuery(url: string, key?: string, multiple?: boolean): any {
     if (valueIndex === -1) {
       value = '';
     } else {
-      value = url.slice(
-        valueIndex + 1,
-        nextKeyIndex === -1 ? undefined : nextKeyIndex,
-      );
+      value = url.slice(valueIndex + 1, nextKeyIndex === -1 ? undefined : nextKeyIndex);
       if (encoded) {
         value = _decodeURI(value);
       }

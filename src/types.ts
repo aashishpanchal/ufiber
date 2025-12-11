@@ -1,23 +1,13 @@
 import type {Context} from './core';
 
-////////////////////////////////////////
-//////                            //////
-//////           Handler          //////
-//////                            //////
-////////////////////////////////////////
-
 export type BufferArray = Buffer<ArrayBuffer>;
+export type CompressFormat = 'deflate' | 'br' | 'gzip' | undefined;
+
 export type Next = () => Promise<void>;
 export type Handler = (ctx: Context, next: Next) => void | Promise<void>;
 export type Middleware = (ctx: Context, next: Next) => Promise<void>;
 export type ErrorHandler = (err: Error, ctx: Context) => void | Promise<void>;
 export type NotFoundHandler = (ctx: Context) => void | Promise<void>;
-
-////////////////////////////////////////
-//////                            //////
-//////           Router           //////
-//////                            //////
-////////////////////////////////////////
 
 /**
  * Represents a single route definition.
@@ -121,12 +111,6 @@ export type Params = Record<string, string>;
  * ```
  */
 export type Result<T> = [[T, ParamIndexMap][], ParamStash] | [[T, Params][]];
-
-////////////////////////////////////////
-//////                            //////
-//////           Header           //////
-//////                            //////
-////////////////////////////////////////
 
 /**
  * @module

@@ -1,6 +1,7 @@
 import {getQuery} from '@/utils/query';
 import {describe, it, expect} from 'vitest';
 
+// URL search query test case
 describe('getQuery()', () => {
   // Basic parsing
   it('parses flat query parameters', () => {

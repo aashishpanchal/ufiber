@@ -30,9 +30,7 @@ export const getPattern = (label: string, next?: string): Pattern | null => {
   return null;
 };
 
-const extractGroupsFromPath = (
-  path: string,
-): {groups: [string, string][]; path: string} => {
+const extractGroupsFromPath = (path: string): {groups: [string, string][]; path: string} => {
   const groups: [string, string][] = [];
 
   path = path.replace(/\{[^}]+\}/g, (match, index) => {
@@ -51,10 +49,7 @@ export const splitRoutingPath = (routePath: string): string[] => {
   return replaceGroupMarks(paths, groups);
 };
 
-const replaceGroupMarks = (
-  paths: string[],
-  groups: [string, string][],
-): string[] => {
+const replaceGroupMarks = (paths: string[], groups: [string, string][]): string[] => {
   for (let i = groups.length - 1; i >= 0; i--) {
     const [mark] = groups[i];
 

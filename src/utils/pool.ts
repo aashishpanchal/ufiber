@@ -5,11 +5,7 @@ export class Pooling<T> {
   #reset: (obj: T) => void;
   #factory: () => T;
 
-  constructor(
-    factory: () => T,
-    reset: (obj: T) => void,
-    options: {maxSize?: number; preAlloc?: number} = {},
-  ) {
+  constructor(factory: () => T, reset: (obj: T) => void, options: {maxSize?: number; preAlloc?: number} = {}) {
     this.#reset = reset;
     this.#factory = factory;
     this.#maxSize = options.maxSize || 1000;
@@ -21,31 +17,21 @@ export class Pooling<T> {
     }
   }
 
-  /**
-   * Get an instance from pool or create new one
-   */
   acquire(): T {
-    const obj = this.#pool.pop();
-    if (obj) return obj;
+    if (this.#pool.length > 0) {
+      return this.#pool.pop()!;
+    }
     this.#created++;
     return this.#factory();
   }
 
-  /**
-   * Return instance to pool after resetting
-   */
   release(obj: T): void {
-    if (this.#pool.length >= this.#maxSize) {
-      // Pool is full, let GC handle it
-      return;
-    }
+    if (!obj) return;
+    if (this.#pool.length >= this.#maxSize) return;
     this.#reset(obj);
     this.#pool.push(obj);
   }
 
-  /**
-   * Get pool statistics
-   */
   stats() {
     return {
       available: this.#pool.length,
@@ -54,10 +40,7 @@ export class Pooling<T> {
     };
   }
 
-  /**
-   * Clear the pool
-   */
   clear(): void {
-    this.#pool = [];
+    this.#pool.length = 0;
   }
 }

@@ -27,6 +27,8 @@ const entries: Options[] = [
       './src/middle/cors.ts',
       './src/middle/proxy.ts',
       './src/middle/logger.ts',
+      // helps
+      './src/helps/stream/index.ts',
     ],
     external: [/.*\/uws$/, /^\.\.\/uws/, 'uws'],
   },

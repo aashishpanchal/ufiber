@@ -15,7 +15,6 @@
     "build:watch": "pnpm remove-dist && node build.ts --watch",
     "lint": "eslint \"./{src,tests}/**/*.{ts,js}\" --fix",
     "test": "vitest run",
-    "test:types": "vitest --typecheck --run --passWithNoTests",
     "format": "prettier --write \"./{src,tests}/**/*.{ts,js}\"",
     "release": "pnpm run build && npm publish",
     "pre-commit": "pnpm format && pnpm test",
@@ -52,9 +51,9 @@
       "require": "./dist/core/index.cjs"
     },
     "./tools": {
-      "import": "./dist/utils/tools.js",
-      "types": "./dist/utils/tools.d.ts",
-      "require": "./dist/utils/tools.cjs"
+      "import": "./dist/utils/tools/index.js",
+      "types": "./dist/utils/tools/index.d.ts",
+      "require": "./dist/utils/tools/index.cjs"
     },
     "./logger": {
       "import": "./dist/middle/logger.js",
@@ -70,6 +69,11 @@
       "import": "./dist/middle/proxy.js",
       "types": "./dist/middle/proxy.d.ts",
       "require": "./dist/middle/proxy.cjs"
+    },
+    "./stream": {
+      "import": "./dist/helps/stream/index.js",
+      "types": "./dist/helps/stream/index.d.ts",
+      "require": "./dist/helps/stream/index.cjs"
     }
   },
   "typesVersions": {
@@ -96,7 +100,10 @@
         "./dist/middle/logger.d.ts"
       ],
       "tools": [
-        "./dist/utils/tools.d.ts"
+        "./dist/utils/tools/index.d.ts"
+      ],
+      "stream": [
+        "./dist/helps/stream/index.d.ts"
       ]
     }
   },
@@ -118,10 +125,14 @@
     "uws",
     "ufiber"
   ],
+  "dependencies": {
+    "ansis": "^4.2.0",
+    "mrmime": "^2.0.1"
+  },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@swc/core": "^1.15.3",
-    "@types/node": "^24.10.1",
+    "@types/node": "^24.10.2",
     "arg": "^5.0.2",
     "esbuild": "^0.25.12",
     "eslint": "^9.39.1",
@@ -133,7 +144,7 @@
     "rimraf": "^6.1.2",
     "tsdown": "^0.15.12",
     "typescript": "~5.9.3",
-    "typescript-eslint": "^8.48.1",
+    "typescript-eslint": "^8.49.0",
     "unplugin-swc": "^1.5.9",
     "unplugin-unused": "^0.5.6",
     "vite-tsconfig-paths": "^5.1.4",
@@ -142,5 +153,5 @@
   "engines": {
     "node": ">=20"
   },
-  "packageManager": "pnpm@10.24.0"
+  "packageManager": "pnpm@10.25.0"
 }

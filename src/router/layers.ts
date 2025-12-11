@@ -1,4 +1,3 @@
-import {kCtxReq} from '@/consts';
 import type {Context} from '@/core';
 import type {Result, RouterRoute} from '@/types';
 
@@ -19,7 +18,7 @@ export const compose =
       index = i;
       if (i >= len) return;
       const r = middles[i][0];
-      ctx.req[kCtxReq].routeIndex = i;
+      ctx.req.routeIndex = i;
 
       try {
         if (!r.handler) {

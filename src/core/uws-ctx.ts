@@ -1,25 +1,18 @@
-import {kCtxRes} from '@/consts';
+import {kCtxRes, kInitMethod, kResetMethod} from '@/consts';
 import {Request} from './uws-req';
+import {NullObject} from '@/utils/tools';
+import {EventEmitter} from 'node:events';
+import {CookieManager} from '@/helps/cookie/object';
 import type {BaseMime, ResponseHeader} from '@/types';
 import type {HttpRequest, HttpResponse, RecognizedString} from '../../uws';
-import {
-  STATUS_TEXT,
-  type HttpStatusCode,
-  type RedirectStatusCode,
-} from '@/status';
-
-interface SetHeaders {
-  (name: 'content-type', value?: BaseMime, append?: boolean): void;
-  (name: ResponseHeader, value?: string, append?: boolean): void;
-  (name: string, value?: string, append?: boolean): void;
-}
+import {STATUS_TEXT, type HttpStatusCode, type RedirectStatusCode} from '@/status';
 
 type ResData = {
   vars?: Record<string, unknown>;
   headers: Record<string, string>;
+  cachedIp?: string;
   statusCode: HttpStatusCode;
   headerSent: boolean;
-  aborts: Array<() => void>;
 };
 
 type Options = {
@@ -29,6 +22,8 @@ type Options = {
   methods?: string[];
 };
 
+type EventType = Record<'abort' | 'close', []>;
+
 /**
  * ⚡ Unified high-performance Context for uWebSockets.js
  * Combines both Request + Response APIs into one streamlined object.
@@ -36,58 +31,38 @@ type Options = {
 export class Context {
   raw!: HttpResponse;
   req = new Request();
-  /** True if the client disconnected before response was sent */
   aborted = false;
-  /** True once response is completed */
   finished = false;
-  #cachedIp?: string;
-  #abortHandler?: () => void;
+  events = new EventEmitter<EventType>();
   [kCtxRes]: ResData = {
-    aborts: [],
-    headers: Object.create(null),
-    headerSent: false,
+    headers: NullObject(),
     statusCode: 200,
+    headerSent: false,
   };
+  #cookie?: CookieManager;
 
-  /**
-   * Initialize/reinitialize the context for a new request
-   */
-  init(
-    reqRaw: HttpRequest,
-    res: HttpResponse,
-    {appName, ...opts}: Options,
-  ): this {
+  [kInitMethod](reqRaw: HttpRequest, res: HttpResponse, {appName, ...opts}: Options): this {
     this.raw = res;
-    // ALWAYS reinitialize request with new data
-    this.req.init(reqRaw, res, opts);
-    // Default headers
-    this[kCtxRes].headers['x-powered-by'] = appName;
-    // Abort handling - create handler if not exists to prevent listener leak
-    if (!this.#abortHandler) {
-      this.#abortHandler = () => {
-        if (this.aborted || this.finished) return;
-        this.aborted = true;
-        this.finished = true;
-        this.req._destroy();
-        this[kCtxRes].aborts.forEach(cb => cb());
-        this[kCtxRes].aborts.length = 0;
-      };
-    }
-    res.onAborted(this.#abortHandler);
-
+    this.req[kInitMethod](reqRaw, res, opts);
+    this.events.removeAllListeners();
+    this[kCtxRes].headers['X-Powered-By'] = appName;
     return this;
   }
 
   /**
-   * Register a callback that runs if the client disconnects.
+   * Access cookie operations for reading and writing HTTP cookies.
    *
    * @example
    * ```ts
-   * ctx.onAbort(() => console.log("Client left early"));
+   * ctx.cookie.set('user_id', '123', { maxAge: 3600 });
+   * ctx.cookie.delete('old_token');
    * ```
    */
-  onAbort(fn: () => void): void {
-    this[kCtxRes].aborts.push(fn);
+  get cookie(): CookieManager {
+    if (!this.#cookie) {
+      this.#cookie = new CookieManager(this);
+    }
+    return this.#cookie;
   }
 
   /**
@@ -99,8 +74,7 @@ export class Context {
    * ```
    */
   set<T>(key: string, value: T): this {
-    const vars =
-      this[kCtxRes].vars ?? (this[kCtxRes].vars = Object.create(null));
+    const vars = this[kCtxRes].vars ?? (this[kCtxRes].vars = NullObject());
     vars[key] = value;
     return this;
   }
@@ -127,26 +101,27 @@ export class Context {
    * ```
    */
   get ip(): string {
-    if (this.#cachedIp) return this.#cachedIp;
+    const r = this[kCtxRes];
+    if (r.cachedIp) return r.cachedIp;
     const trust = this.get('trust-proxy');
     // Check proxy headers only if trust is enabled
     if (trust) {
       const forwarded = this.req.header('x-forwarded-for');
       if (forwarded) {
-        this.#cachedIp = forwarded.split(',')[0].trim();
-        return this.#cachedIp;
+        r.cachedIp = forwarded.split(',')[0].trim();
+        return r.cachedIp;
       }
       const realIp = this.req.header('x-real-ip');
       if (realIp) {
-        this.#cachedIp = realIp;
-        return this.#cachedIp;
+        r.cachedIp = realIp;
+        return r.cachedIp;
       }
     }
     // Get raw IP from uWebSockets
     const rawIp = this.raw.getRemoteAddress();
     if (rawIp.byteLength === 4) {
       // IPv4
-      this.#cachedIp = new Uint8Array(rawIp).join('.');
+      r.cachedIp = new Uint8Array(rawIp).join('.');
     } else if (rawIp.byteLength === 16) {
       // IPv6
       const dv = new DataView(rawIp);
@@ -158,12 +133,12 @@ export class Context {
           .padStart(4, '0');
         if (i < 7) ip += ':';
       }
-      this.#cachedIp = ip;
+      r.cachedIp = ip;
     } else {
       // Unix socket
-      this.#cachedIp = '-';
+      r.cachedIp = '-';
     }
-    return this.#cachedIp;
+    return r.cachedIp;
   }
 
   /**
@@ -172,12 +147,40 @@ export class Context {
    *
    * @example
    * ```ts
-   * ctx.status(201).json({ created: true });
+   * ctx.status(201);
+   * ctx.text("hello world");
    * ```
    */
-  status(code: HttpStatusCode): this {
+  status(code: HttpStatusCode): void {
     this[kCtxRes].statusCode = code;
-    return this;
+  }
+
+  /**
+   * Register a callback to be called when the request is aborted.
+   *
+   * @example
+   * ```ts
+   * ctx.onAbort(() => {
+   *   console.log('Client disconnected');
+   * });
+   * ```
+   */
+  onAbort(listener: () => void): void {
+    this.events.on('abort', listener);
+  }
+
+  /**
+   * Register a callback to be called when the response is closed.
+   *
+   * @example
+   * ```ts
+   * ctx.onClose(() => {
+   *   console.log('Response closed');
+   * });
+   * ```
+   */
+  onClose(listener: () => void): void {
+    this.events.on('close', listener);
   }
 
   /**
@@ -185,15 +188,17 @@ export class Context {
    *
    * @example
    * ```ts
-   * ctx.header('Content-Type', 'application/json');
-   * ctx.header('x-id', '123', true); // append
    * ctx.header('x-remove'); // delete
+   * ctx.header('x-id', '123', true); // append
+   * ctx.header('Content-Type', 'application/json');
    * ```
    */
-  header: SetHeaders = (field, value, append): void => {
+  header(name: 'Content-Type', value?: BaseMime, append?: boolean): void;
+  header(name: ResponseHeader, value?: string, append?: boolean): void;
+  header(name: string, value?: string, append?: boolean): void;
+  header(field: any, value: any, append: any): void {
     const r = this[kCtxRes];
-    if (r.headerSent)
-      throw new Error('Cannot set headers after they are sent to the client');
+    if (r.headerSent) throw new Error('Cannot set headers after they are sent to the client');
     // DELETE
     if (value === undefined) delete r.headers[field];
     // APPEND
@@ -203,21 +208,14 @@ export class Context {
     }
     // SET (replace)
     else r.headers[field] = value;
-  };
+  }
 
   /**
+   * @internal
    * Writes all queued response headers to the underlying uWS response.
    * Called automatically before sending the body.
-   *
-   * @example
-   * ```ts
-   * // Normally you don't call this directly.
-   * // It runs inside ctx.end(), ctx.json(), ctx.text(), etc.
-   * ctx.header('x-id', '123');
-   * ctx.end('OK'); // writeHeaders() runs internally
-   * ```
    */
-  writeHeaders() {
+  _writeHeaders() {
     const r = this[kCtxRes];
     const headers = r.headers;
     for (const key in headers) {
@@ -227,17 +225,11 @@ export class Context {
   }
 
   /**
+   * @internal
    * Writes the HTTP status line (e.g. "200 OK") to the response.
    * Called automatically before headers/body.
-   *
-   * @example
-   * ```ts
-   * // Internal usage:
-   * ctx.status(404);
-   * ctx.end('Not Found'); // writeStatus() runs automatically
-   * ```
    */
-  writeStatus() {
+  _writeStatus() {
     const r = this[kCtxRes];
     const statusText = STATUS_TEXT[r.statusCode];
     this.raw.writeStatus(statusText);
@@ -251,19 +243,17 @@ export class Context {
    * ctx.end('Hello World');
    * ```
    */
-  end(body?: RecognizedString, cb?: () => void): void {
+  end(body?: RecognizedString): void {
     if (this.finished || this.aborted) return;
     this.raw.cork(() => {
-      const finish = () =>
-        queueMicrotask(() => {
-          this.finished = true;
-          cb?.();
-        });
-      this.writeStatus();
-      this.writeHeaders();
+      const finish = () => {
+        this.finished = true;
+        this.events.emit('close');
+      };
+      this._writeStatus();
+      this._writeHeaders();
       if (this.req.method === 'HEAD') {
-        const len =
-          body && typeof body === 'string' ? Buffer.byteLength(body) : 0;
+        const len = body && typeof body === 'string' ? Buffer.byteLength(body) : 0;
         this.raw.endWithoutBody(len);
         finish();
         return;
@@ -274,10 +264,7 @@ export class Context {
         return;
       }
       if (Buffer.isBuffer(body)) {
-        const arrBuf = body.buffer.slice(
-          body.byteOffset,
-          body.byteOffset + body.byteLength,
-        ) as ArrayBuffer;
+        const arrBuf = body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer;
         finish();
         this.raw.end(arrBuf);
         return;
@@ -293,13 +280,12 @@ export class Context {
    * @example
    * ```ts
    * ctx.text('Hello World', 200);
-   * ctx.status(200).text('Success');
    * ```
    */
   text(body: string, status?: HttpStatusCode): void {
     const r = this[kCtxRes];
     if (status !== undefined) r.statusCode = status;
-    r.headers['content-type'] = 'text/plain; charset=utf-8';
+    r.headers['Content-Type'] = 'text/plain; charset=utf-8';
     this.end(body);
   }
 
@@ -309,13 +295,12 @@ export class Context {
    * @example
    * ```ts
    * ctx.json({ ok: true });
-   * ctx.json({ error: "Missing" }, 404);
    * ```
    */
   json(body: any, status?: HttpStatusCode): void {
     const r = this[kCtxRes];
     if (status !== undefined) r.statusCode = status;
-    r.headers['content-type'] = 'application/json; charset=utf-8';
+    r.headers['Content-Type'] = 'application/json; charset=utf-8';
     this.end(JSON.stringify(body));
   }
 
@@ -325,13 +310,12 @@ export class Context {
    * @example
    * ```ts
    * ctx.html('<h1>Welcome</h1>');
-   * ctx.html('<p>Error</p>', 500);
    * ```
    */
   html(body: string, status?: HttpStatusCode): void {
     const r = this[kCtxRes];
     if (status !== undefined) r.statusCode = status;
-    r.headers['content-type'] = 'text/html; charset=utf-8';
+    r.headers['Content-Type'] = 'text/html; charset=utf-8';
     this.end(body);
   }
 
@@ -353,27 +337,23 @@ export class Context {
   }
 
   /**
+   * @internal
    * Reset the context for reuse in object pool
    */
-  reset(): void {
-    if (this.req.isInit) {
-      this.req.reset();
-    }
+  [kResetMethod](): void {
     // Clear response data
     const r = this[kCtxRes];
     r.vars = undefined;
-    r.headers = Object.create(null);
+    r.headers = NullObject();
     r.statusCode = 200;
     r.headerSent = false;
-    // Clear abort callbacks to prevent closure leaks
-    r.aborts.length = 0;
-
-    // Clear reference to uWS response to prevent memory leak
+    r.cachedIp = undefined;
     this.raw = null as any;
-
+    this.req[kResetMethod]();
     // Reset flags
     this.aborted = false;
     this.finished = false;
-    this.#cachedIp = undefined;
+    // Clear event listeners
+    this.events.removeAllListeners();
   }
 }
