@@ -1,8 +1,8 @@
 import {delay} from '@/utils/tools';
-import type {Context} from '@/core';
+import {Context} from '@/http/context';
 import type {Readable} from 'node:stream';
-import {HIGH_WATER_MARK, kCtxRes} from '@/consts';
-import type {RecognizedString} from '../../../uws';
+import {HIGH_WATER_MARK, kEvent} from '@/consts';
+import type {RecognizedString} from '../../uws';
 
 const FLUSH_TIMEOUT = 50;
 
@@ -15,7 +15,7 @@ type Stream = {
 
 export class UwsStream {
   #ctx: Context;
-  sleep = delay;
+  delay = delay;
   #stream: Stream = {
     pendingSize: 0,
     lastWriteTime: 0,
@@ -25,31 +25,41 @@ export class UwsStream {
   constructor(ctx: Context) {
     this.#ctx = ctx;
   }
-
+  /**
+   * Whether the stream has been aborted.
+   */
   get aborted() {
     return this.#ctx.aborted;
   }
-
-  get finished() {
-    return this.#ctx.finished;
+  /**
+   * Whether the stream has been closed normally.
+   */
+  get closed() {
+    return this.#ctx.closed;
   }
-
-  onAbort(listener: () => void) {
-    this.#ctx.onAbort(listener);
-  }
-
+  /**
+   * Register a callback invoked when the stream closes.
+   *
+   * @param listener - Callback to invoke on close
+   *
+   * @example
+   * ```ts
+   * stream.onClose(() => {
+   *   console.log('Stream closed');
+   * });
+   * ```
+   */
   onClose(listener: () => void) {
     this.#ctx.onClose(listener);
   }
-
   /** @internal flush pending buffered chunks to the underlying socket. */
   #flush(): void {
     const s = this.#stream;
     if (s.pendingSize === 0) return;
     try {
-      if (!this.#ctx[kCtxRes].headerSent) {
-        this.#ctx._writeStatus();
-        this.#ctx._writeHeaders();
+      if (!this.#ctx.headerSent) {
+        this.#ctx.writeHead();
+        this.#ctx.writeStatus();
       }
       // Write all pending chunks
       for (const chunk of s.pendingChunks) {
@@ -67,7 +77,6 @@ export class UwsStream {
       }
     }
   }
-
   /**
    * Write a chunk to the stream (buffered).
    *
@@ -80,7 +89,7 @@ export class UwsStream {
    * ```
    */
   async write(chunk: RecognizedString): Promise<void> {
-    if (this.aborted || this.finished) return;
+    if (this.aborted || this.closed) return;
     const s = this.#stream;
     // Calculate chunk size
     let chunkSize: number;
@@ -96,21 +105,24 @@ export class UwsStream {
     s.pendingSize += chunkSize;
     const now = performance.now();
     // Flush conditions
-    if (!s.lastWriteTime || s.pendingSize >= HIGH_WATER_MARK || now - s.lastWriteTime > FLUSH_TIMEOUT) {
+    if (
+      !s.lastWriteTime ||
+      s.pendingSize >= HIGH_WATER_MARK ||
+      now - s.lastWriteTime > FLUSH_TIMEOUT
+    ) {
       this.#ctx.raw.cork(() => this.#flush());
     } else if (!s.writeTimeout) {
       // Schedule flush after FLUSH_TIMEOUT
       s.writeTimeout = setTimeout(() => {
         s.writeTimeout = undefined;
-        if (!this.finished && !this.aborted) {
+        if (!this.closed && !this.aborted) {
           this.#ctx.raw.cork(() => this.#flush());
         }
       }, FLUSH_TIMEOUT);
       // Don't prevent process exit
-      s.writeTimeout.unref?.();
+      s.writeTimeout.unref();
     }
   }
-
   /**
    * Write a line (with newline appended).
    *
@@ -123,12 +135,14 @@ export class UwsStream {
   async writeln(line: string): Promise<void> {
     return this.write(line + '\n');
   }
-
   /**
    * Pipe from a Web ReadableStream or Node.js Readable into this stream.
    * Automatically closes the stream unless `preventClose` is true.
    */
-  async pipe(body: ReadableStream<Uint8Array> | Readable, preventClose?: boolean): Promise<void> {
+  async pipe(
+    body: ReadableStream<Uint8Array> | Readable,
+    preventClose?: boolean,
+  ): Promise<void> {
     if (this.aborted) return;
     if ('getReader' in body) {
       // Web ReadableStream
@@ -139,7 +153,10 @@ export class UwsStream {
     }
   }
 
-  async #pipeWeb(body: ReadableStream<Uint8Array>, preventClose?: boolean): Promise<void> {
+  async #pipeWeb(
+    body: ReadableStream<Uint8Array>,
+    preventClose?: boolean,
+  ): Promise<void> {
     let active = true;
     const reader = body.getReader();
 
@@ -154,7 +171,6 @@ export class UwsStream {
       }
     };
 
-    this.onAbort(cleanup);
     this.onClose(cleanup);
 
     try {
@@ -195,7 +211,6 @@ export class UwsStream {
       }
     };
 
-    this.onAbort(cleanup);
     this.onClose(cleanup);
 
     try {
@@ -215,16 +230,16 @@ export class UwsStream {
   }
 
   close() {
-    if (this.finished || this.aborted) return;
+    if (this.closed || this.aborted) return;
     try {
       this.#ctx.raw.cork(() => {
         this.#flush();
         this.#ctx.raw.end();
-        this.#ctx.finished = true;
-        this.#ctx.events.emit('close');
+        this.#ctx.closed = true;
+        this.#ctx[kEvent]?.emit('close');
       });
     } catch (err) {
-      if (!this.aborted && !this.finished) {
+      if (!this.aborted && !this.closed) {
         console.error('[stream] Close error:', err);
       }
     }
@@ -232,6 +247,7 @@ export class UwsStream {
 
   abort() {
     if (!this.aborted) {
+      // Immediately force closes the connection. Any onAborted callback will run.
       this.#ctx.raw.close();
     }
   }

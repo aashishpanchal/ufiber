@@ -1,6 +1,6 @@
 import {UwsStream} from './utils';
 import {HttpError} from '@/errors';
-import type {Context} from '@/core';
+import type {Context} from '@/http';
 import {lookup as mimeLookup} from 'mrmime';
 import {createReadStream, statSync} from 'node:fs';
 import {resolve, isAbsolute, normalize} from 'node:path';
@@ -44,7 +44,11 @@ type Options = {
  * });
  * ```
  */
-export const streamFile = async (ctx: Context, filePath: string, options?: Options): Promise<void> => {
+export const streamFile = async (
+  ctx: Context,
+  filePath: string,
+  options?: Options,
+): Promise<void> => {
   const stream = new UwsStream(ctx);
   try {
     // Security: Path validation
@@ -95,23 +99,29 @@ export const streamFile = async (ctx: Context, filePath: string, options?: Optio
         message: 'Path is a directory',
       });
     }
-    const cType = options?.contentType || mimeLookup(fullPath) || 'application/octet-stream';
+    const cType =
+      options?.contentType ||
+      mimeLookup(fullPath) ||
+      'application/octet-stream';
 
     // Standard headers
-    ctx.header('Content-Type', cType);
-    ctx.header('Accept-Ranges', 'bytes');
-    ctx.header('Connection', 'keep-alive');
-    ctx.header('Last-Modified', stat.mtime.toUTCString());
-    ctx.header('ETag', `"${stat.size}-${stat.mtime.getTime()}"`);
-    if (options?.noCache ?? true) ctx.header('Cache-Control', 'no-cache');
-    else ctx.header('Cache-Control', 'public, max-age=31536000, immutable');
+    ctx.header('content-type', cType);
+    ctx.header('accept-ranges', 'bytes');
+    ctx.header('connection', 'keep-alive');
+    ctx.header('last-modified', stat.mtime.toUTCString());
+    ctx.header('etag', `"${stat.size}-${stat.mtime.getTime()}"`);
+    if (options?.noCache ?? true) ctx.header('cache-control', 'no-cache');
+    else ctx.header('cache-control', 'public, max-age=31536000, immutable');
 
     // Handle conditional requests (304 Not Modified)
     const ifNoneMatch = ctx.req.header('if-none-match');
     const ifModifiedSince = ctx.req.header('if-modified-since');
     const etag = `"${stat.size}-${stat.mtime.getTime()}"`;
 
-    if (ifNoneMatch === etag || (ifModifiedSince && new Date(ifModifiedSince) >= stat.mtime)) {
+    if (
+      ifNoneMatch === etag ||
+      (ifModifiedSince && new Date(ifModifiedSince) >= stat.mtime)
+    ) {
       ctx.status(304);
       return ctx.end();
     }
@@ -119,13 +129,13 @@ export const streamFile = async (ctx: Context, filePath: string, options?: Optio
     // Handle HEAD requests
     if (ctx.req.method === 'HEAD') {
       ctx.status(200);
-      ctx.header('Content-Length', stat.size.toString());
+      ctx.header('content-length', stat.size.toString());
       return ctx.end();
     }
 
     const createStream = (start?: number, end?: number) => {
       const file = createReadStream(fullPath, {start, end, autoClose: true});
-      stream.onAbort(() => {
+      stream.onClose(() => {
         file.destroy();
       });
       return file;
@@ -140,17 +150,17 @@ export const streamFile = async (ctx: Context, filePath: string, options?: Optio
       const chunkSize = Math.min(stat.size - 1, end) - start + 1;
       if (start >= stat.size || start > end) {
         ctx.status(416);
-        ctx.header('Content-Range', `bytes */${stat.size}`);
+        ctx.header('content-range', `bytes */${stat.size}`);
         return ctx.end();
       }
       ctx.status(206);
-      ctx.header('Content-Range', `bytes ${start}-${end}/${stat.size}`);
-      ctx.header('Content-Length', chunkSize.toString());
+      ctx.header('content-range', `bytes ${start}-${end}/${stat.size}`);
+      ctx.header('content-length', chunkSize.toString());
       return await stream.pipe(createStream(start, end), false);
     }
     // Normal response
     ctx.status(200);
-    ctx.header('Content-Length', stat.size.toString());
+    ctx.header('content-length', stat.size.toString());
     return await stream.pipe(createStream(), false);
   } catch (err) {
     console.error('[stream] Error:', err);
@@ -158,7 +168,7 @@ export const streamFile = async (ctx: Context, filePath: string, options?: Optio
       await options.onError(err as Error, stream);
     } else {
       ctx.status(500);
-      ctx.header('Content-Type', 'text/plain');
+      ctx.header('content-type', 'text/plain');
       ctx.end('File streaming failed');
     }
   }

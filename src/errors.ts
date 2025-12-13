@@ -55,7 +55,11 @@ export class HttpError extends Error {
       cause?: unknown;
     } = {message: 'HttpError'},
   ) {
-    super(typeof options.message === 'string' ? options.message : getErrorName(status));
+    super(
+      typeof options.message === 'string'
+        ? options.message
+        : getErrorName(status),
+    );
     // Allow developer to override error name
     this.name = options.name ?? getErrorName(status);
 
@@ -125,10 +129,14 @@ export const UnAuthorizedError = createHttpErrorClass(HttpStatus.UNAUTHORIZED);
  * Represents an Internal Server Error HTTP error (500).
  * @extends {HttpError}
  */
-export const InternalServerError = createHttpErrorClass(HttpStatus.INTERNAL_SERVER_ERROR);
+export const InternalServerError = createHttpErrorClass(
+  HttpStatus.INTERNAL_SERVER_ERROR,
+);
 
 /**
  * Represents an Content Too Larger Error HTTP error (413).
  * @extends {HttpError}
  */
-export const ContentTooLargeError = createHttpErrorClass(HttpStatus.PAYLOAD_TOO_LARGE);
+export const ContentTooLargeError = createHttpErrorClass(
+  HttpStatus.PAYLOAD_TOO_LARGE,
+);

@@ -1,92 +1,67 @@
-import {tryDecode} from '@/utils/url';
-import {getQuery} from '@/utils/query';
-import {UwsReadable} from './uws-read';
+import {UwsReadable} from './readable';
 import {NullObject} from '@/utils/tools';
+import {tryDecode, getQuery} from '@/utils/url';
+import type {Result, RouterRoute} from '@/types';
+import {discardedDuplicates, kMatch} from '@/consts';
 import type {HttpRequest, HttpResponse} from '../../uws';
-import {kInitMethod, kMatch, kResetMethod} from '@/consts';
 import {FormOption, FormData, formParse} from '@/utils/body';
-import type {CustomHeader, RequestHeader, Result, RouterRoute} from '@/types';
+import type {CustomHeader, ReqHeaders} from '@/utils/header';
 
-const tryDecodeURIComponent = (str: string) => tryDecode(str, decodeURIComponent);
+const tryDecodeURIComponent = (str: string) =>
+  tryDecode(str, decodeURIComponent);
 
-const discardedDuplicates = [
-  'age',
-  'authorization',
-  'content-length',
-  'content-type',
-  'etag',
-  'expires',
-  'from',
-  'host',
-  'if-modified-since',
-  'if-unmodified-since',
-  'last-modified',
-  'location',
-  'max-forwards',
-  'proxy-authorization',
-  'referer',
-  'retry-after',
-  'server',
-  'user-agent',
-];
-
-type BodyCache = Partial<{
+type BodyCache = {
   json: any;
-  text: string;
   blob: Blob;
-  arrayBuffer: ArrayBuffer;
+  text: string;
   formData: FormData;
-}>;
+  arrayBuffer: ArrayBuffer;
+};
 
 type Options = {
   isSSL: boolean;
   methods?: string[];
-  bodyLimit?: number;
+  bodyLimit: number | null;
 };
 
-export class Request {
+export class UwsRequest {
   raw!: HttpRequest;
   isSSL = false;
   isRead = false;
   /** URL pathname starting with `/` */
-  path: string = '';
+  path: string;
   /** HTTP method in uppercase (e.g. `POST`, `GET`) */
-  method: string = '';
+  method: string;
   /** Raw query string (with `?` prefix) or empty string */
-  urlQuery: string = '';
+  urlQuery: string;
   routeIndex = 0;
   [kMatch]!: Result<RouterRoute>;
   #stream?: UwsReadable;
   #rawHeader: [string, string][] = [];
-  #bodyCache: BodyCache = NullObject();
+  #bodyCache: Partial<BodyCache> = NullObject();
   #headers: Record<string, any> = NullObject();
 
-  [kInitMethod](raw: HttpRequest, res: HttpResponse, {bodyLimit, methods, isSSL}: Options): this {
+  constructor(
+    raw: HttpRequest,
+    res: HttpResponse,
+    {bodyLimit, methods, isSSL}: Options,
+  ) {
     this.raw = raw;
-    this.method = raw.getCaseSensitiveMethod();
     const q = raw.getQuery();
+    this.method = raw.getMethod().toUpperCase();
     this.path = raw.getUrl();
     this.urlQuery = q ? '?' + q : '';
     this.isSSL = isSSL;
-    // Store raw headers
     raw.forEach((key, value) => this.#rawHeader.push([key, value]));
     // skip reading body for non-POST requests
-    // this makes it +10k req/sec faster
     this.isRead =
-      ['POST', 'PUT', 'PATCH'].includes(this.method) || ((methods && methods.includes(this.method)) as boolean);
+      ['POST', 'PUT', 'PATCH'].includes(this.method) ||
+      ((methods && methods.includes(this.method)) as boolean);
     if (this.isRead) {
       const encoding = raw.getHeader('content-encoding') as any;
       this.#stream = new UwsReadable(res, encoding, bodyLimit);
     }
-    return this;
   }
-
-  /** @internal destroy readable stream and clean up cache body */
-  destroy() {
-    this.#stream?.destroy();
-    this.#bodyCache = NullObject();
-  }
-
   /**
    * Full request URL including protocol, host, path and query.
    *
@@ -100,7 +75,6 @@ export class Request {
     const protocol = this.isSSL ? 'https://' : 'http://';
     return protocol + host + this.path + this.urlQuery;
   }
-
   /**
    * Returns a single query param or the full query object.
    *
@@ -115,7 +89,6 @@ export class Request {
   query(key?: string): any {
     return getQuery(this.url, key as any);
   }
-
   /**
    * Returns array values for a query param or all params as arrays.
    *
@@ -130,7 +103,6 @@ export class Request {
   queries(key?: string): any {
     return getQuery(this.url, key as any, true);
   }
-
   /**
    * Returns the value of a named route parameter.
    *
@@ -139,12 +111,11 @@ export class Request {
    * ctx.req.param('id'); // "123"
    * ```
    */
-  param(field: string): string | undefined {
+  param(field: string): string {
     const paramKey = this[kMatch][0][this.routeIndex][1][field];
     const param = this.#getParamValue(paramKey);
     return param && /%/.test(param) ? tryDecodeURIComponent(param) : param;
   }
-
   /**
    * Returns an object containing all route parameters for the current route.
    *
@@ -157,7 +128,9 @@ export class Request {
     const decoded: Record<string, string> = {};
     const keys = Object.keys(this[kMatch][0][this.routeIndex][1]);
     for (const key of keys) {
-      const value = this.#getParamValue(this[kMatch][0][this.routeIndex][1][key]);
+      const value = this.#getParamValue(
+        this[kMatch][0][this.routeIndex][1][key],
+      );
       if (value !== undefined) {
         decoded[key] = /%/.test(value) ? tryDecodeURIComponent(value) : value;
       }
@@ -167,8 +140,8 @@ export class Request {
   /**
    * Resolves the parameter value from the match result.
    */
-  #getParamValue = (paramKey: any): string | undefined => (this[kMatch][1] ? this[kMatch][1][paramKey] : paramKey);
-
+  #getParamValue = (paramKey: any): string =>
+    this[kMatch][1] ? this[kMatch][1][paramKey] : paramKey;
   /**
    * Lazily normalizes and caches all request headers.
    */
@@ -180,7 +153,7 @@ export class Request {
     for (const [keyRaw, value] of this.#rawHeader) {
       const key = keyRaw.toLowerCase();
       if (store[key]) {
-        if (discardedDuplicates.includes(key)) continue;
+        if (discardedDuplicates.has(key)) continue;
         if (key === 'cookie') {
           store[key] += '; ' + value;
           continue;
@@ -199,7 +172,6 @@ export class Request {
       }
     }
   }
-
   /**
    * Returns a specific request header,
    * or all headers if no name is provided.
@@ -210,18 +182,18 @@ export class Request {
    * ctx.req.header(); // => { host: "localhost:3000", ... }
    * ```
    */
-  header(field: RequestHeader): string | undefined;
+  header(field: ReqHeaders): string | undefined;
   header(field: string): string | undefined;
-  header(): Record<RequestHeader | (string & CustomHeader), string>;
+  header(): Record<ReqHeaders | (string & CustomHeader), string>;
   header(field?: string): any {
     this.#buildHeader();
     const headers = this.#headers;
     if (!field) return headers;
     const key = field.toLowerCase();
-    if (key === 'referrer' || key === 'referer') return headers['referrer'] || headers['referer'];
+    if (key === 'referrer' || key === 'referer')
+      return headers['referrer'] || headers['referer'];
     return headers[key];
   }
-
   /**
    * Readable stream for body.
    * Available only for POST/PUT/PATCH or configured methods.
@@ -231,9 +203,10 @@ export class Request {
    */
   get stream(): UwsReadable {
     if (this.#stream && !this.#stream.destroyed) return this.#stream;
-    throw new Error(`Cannot access request body stream for HTTP method '${this.method}'.`);
+    throw new Error(
+      `Cannot access request body stream for HTTP method '${this.method}'.`,
+    );
   }
-
   /**
    * Reads body as UTF-8 text.
    *
@@ -248,7 +221,6 @@ export class Request {
     body.text = text;
     return text;
   }
-
   /**
    * Reads the body as a Blob (Node 18+).
    *
@@ -267,7 +239,6 @@ export class Request {
     body.blob = blob;
     return blob;
   }
-
   /**
    * Parses body as JSON.
    * Throws on empty or invalid JSON.
@@ -288,7 +259,6 @@ export class Request {
       throw new SyntaxError(`Invalid JSON body: ${err.message}`);
     }
   }
-
   /**
    * Reads body as ArrayBuffer.
    *
@@ -300,11 +270,13 @@ export class Request {
     if (body.arrayBuffer) return body.arrayBuffer;
     const buffer = await this.stream.getRawBody();
     // Convert Node Buffer → ArrayBuffer safely
-    const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+    const arrayBuffer = buffer.buffer.slice(
+      buffer.byteOffset,
+      buffer.byteOffset + buffer.byteLength,
+    );
     body.arrayBuffer = arrayBuffer;
     return arrayBuffer;
   }
-
   /**
    * Parses `application/x-www-form-urlencoded`
    * or `multipart/form-data` bodies.
@@ -313,11 +285,10 @@ export class Request {
    * const form = await ctx.req.formParse();
    * form.get("username");
    */
-  async formParse(options?: FormOption): Promise<FormData> {
+  async formData(options?: FormOption): Promise<FormData> {
     const cType = (this.header('content-type') || '').toLowerCase();
     const body = this.#bodyCache;
     if (body.formData) return body.formData;
-    // Url Encode Form Data
     if (cType.startsWith('application/x-www-form-urlencoded')) {
       const form = new FormData();
       const text = await this.text();
@@ -332,29 +303,14 @@ export class Request {
       } catch (error) {
         throw new SyntaxError('Malformed URL-encoded data');
       }
-    }
-    // multipart Encode Form Data
-    else if (cType.startsWith('multipart/form-data')) {
+    } else if (cType.startsWith('multipart/form-data')) {
       const buf = await this.stream.getRawBody();
       const form = formParse(buf, cType, options);
       body.formData = form;
       return form;
     }
-    throw new TypeError(`Content-Type '${cType}' not supported for form parsing`);
-  }
-
-  /** @internal Reset the request for reuse in object pool */
-  [kResetMethod](): void {
-    this.#bodyCache = NullObject();
-    this.#headers = NullObject();
-    this[kMatch] = null as any;
-    if (this.#stream) this.#stream = undefined;
-    this.#rawHeader.length = 0;
-    this.raw = null as any;
-    this.path = '';
-    this.method = '';
-    this.urlQuery = '';
-    this.isSSL = false;
-    this.routeIndex = 0;
+    throw new TypeError(
+      `Content-Type '${cType}' not supported for form parsing`,
+    );
   }
 }

@@ -1,30 +1,13 @@
 import uWS from '../uws';
-import {Context} from './core';
-import {Pooling} from './utils/pool';
+import {Context} from './http/context';
 import {version} from '../package.json';
-import {showBanner} from './utils/show';
 import {Router, compose} from './router';
-import {k404, k500, kInitMethod, kMatch, kResetMethod} from './consts';
-import {ByteString, NullObject, parseBytes} from './utils/tools';
+import {printBanner} from './utils/banner';
+import {k404, k500, kMatch} from './consts';
+import {bytes, ByteString, NullObject} from './utils/tools';
 
 export type FiberOptions = {
   http3?: boolean;
-  appName?: string;
-  /**
-   * Pool configuration (only used when pooling is enabled)
-   */
-  poolOptions?: {
-    /**
-     * Maximum number of objects to keep in pool
-     * @default 1000
-     */
-    maxSize?: number;
-    /**
-     * Number of objects to pre-allocate on startup
-     * @default 0
-     */
-    preAlloc?: number;
-  };
   /**
    * Allowed HTTP methods to read data body.
    */
@@ -44,10 +27,9 @@ export type FiberOptions = {
 };
 
 /**
- * Fiber — High-performance wrapper with optional object pooling
+ * Fiber — High-performance wrapper on uWebSockets.js
  */
 export class Fiber extends Router {
-  #appName: string;
   #methods?: string[];
   /**
    * Underlying uWebSockets.js `App` or `SSLApp` instance.
@@ -59,41 +41,31 @@ export class Fiber extends Router {
    */
   readonly isSSL: boolean;
   #listened?: boolean;
-  #bodyLimit?: number;
-  #pooling: Pooling<Context>;
+  #bodyLimit: number | null;
   readonly #startTime: number = Date.now();
 
   /**
-   * Create a new Fiber server instance with optional pooling.
+   * Create a new Fiber server instance.
    *
    * @param options - Fiber configuration options
    *
    * @example
    * ```ts
-   * // With pooling enabled (default)
    * const app = new Fiber({bodyLimit: '64MB'});
-   *
-   * // Without pooling
-   * const app = new Fiber({pooling: false});
-   *
-   * // With custom pool options
-   * const app = new Fiber({
-   *   pooling: true,
-   *   poolOptions: {maxSize: 500, preAlloc: 10}
-   * });
    * ```
    */
   constructor(config: FiberOptions = NullObject()) {
     super();
     this.#methods = config.methods;
-    this.#appName = config.appName || 'uFiber';
+    this.#bodyLimit = bytes(config.bodyLimit || '16MB');
     this.#listened = false;
-    this.#bodyLimit = parseBytes(config.bodyLimit || '16MB');
 
     const opts = config.uwsOptions ?? {};
     if (config.http3) {
       if (!opts.key_file_name || !opts.cert_file_name)
-        throw new Error('uwsOptions.key_file_name and uwsOptions.cert_file_name are required for HTTP/3');
+        throw new Error(
+          'uwsOptions.key_file_name and uwsOptions.cert_file_name are required for HTTP/3',
+        );
       this.uwsApp = (uWS as any).H3App(opts);
       this.isSSL = true;
     } else if (opts.key_file_name && opts.cert_file_name) {
@@ -103,28 +75,6 @@ export class Fiber extends Router {
       this.uwsApp = uWS.App(opts);
       this.isSSL = false;
     }
-
-    this.#pooling = new Pooling<Context>(
-      () => new Context(),
-      ctx => ctx[kResetMethod](),
-      config.poolOptions,
-    );
-  }
-
-  /**
-   * Get current pool statistics.
-   * Returns null if pooling is disabled.
-   *
-   * @example
-   * ```ts
-   * const stats = app.getPoolStats();
-   * if (stats) {
-   *   console.log(`Available: ${stats.available}, Created: ${stats.created}`);
-   * }
-   * ```
-   */
-  getPoolStats() {
-    return this.#pooling?.stats() ?? null;
   }
 
   /**
@@ -149,46 +99,26 @@ export class Fiber extends Router {
     this.uwsApp.ws(pattern, behavior);
   }
 
-  /** @internal Internal method to get context (pooled or new) */
-  #getCtx(res: uWS.HttpResponse, req: uWS.HttpRequest): Context {
-    const ctx = this.#pooling.acquire();
-    // Initialize context first
-    ctx[kInitMethod](req, res, {
+  getCtx(req: uWS.HttpRequest, res: uWS.HttpResponse): Context {
+    return new Context(req, res, {
       isSSL: this.isSSL,
-      methods: this.#methods,
-      appName: this.#appName,
       bodyLimit: this.#bodyLimit,
+      methods: this.#methods,
     });
-    // Setup abort handler
-    res.onAborted(() => {
-      if (ctx.raw !== res || ctx.aborted || ctx.finished) return;
-      ctx.req.destroy();
-      ctx.events.emit('abort');
-      ctx.events.emit('close');
-      ctx.aborted = true;
-      ctx.finished = true;
-    });
-    return ctx;
   }
 
-  /** @internal Internal method to release context back to pool */
-  #releaseCtx(ctx: Context): void {
-    queueMicrotask(() => this.#pooling.release(ctx));
-  }
-
-  /** @internal Internal method to attach uWS handlers and route dispatcher */
   #createReqHandler() {
     this.uwsApp.any('/*', (res, req) => {
-      const ctx = this.#getCtx(res, req);
-      const matchResult = this.router.match(ctx.req.method === 'HEAD' ? 'GET' : ctx.req.method, ctx.req.path);
+      const ctx = this.getCtx(req, res);
+      const matchResult = this.router.match(
+        ctx.req.method === 'HEAD' ? 'GET' : ctx.req.method,
+        ctx.req.path,
+      );
       ctx.req[kMatch] = matchResult;
       const handlers = matchResult[0];
-      // Release context after response finishes
-      const releaseCtx = () => this.#releaseCtx(ctx);
       // If match-result not found
       if (handlers.length === 0) {
         this[k404](ctx);
-        releaseCtx();
         return;
       }
       // Single handler
@@ -197,13 +127,10 @@ export class Fiber extends Router {
         try {
           const result = r.handler(ctx, async () => r.nfHandler(ctx));
           if (result instanceof Promise) {
-            result.catch(err => r.errHandler(err, ctx)).finally(releaseCtx);
-          } else {
-            releaseCtx();
+            result.catch(err => r.errHandler(err, ctx));
           }
         } catch (err) {
           r.errHandler(err as Error, ctx);
-          releaseCtx();
         }
         return;
       }
@@ -211,13 +138,10 @@ export class Fiber extends Router {
       try {
         const result = compose(handlers)(ctx);
         if (result instanceof Promise) {
-          result.catch(err => this[k500](err as Error, ctx)).finally(releaseCtx);
-        } else {
-          releaseCtx();
+          result.catch(err => this[k500](err as Error, ctx));
         }
       } catch (err) {
         this[k500](err as Error, ctx);
-        releaseCtx();
       }
     });
   }
@@ -248,7 +172,7 @@ export class Fiber extends Router {
     this.#createReqHandler();
     // Normalize values
     const finalPort = typeof port === 'number' ? port : 0;
-    const finalHost = typeof host === 'string' ? host : '0.0.0.0';
+    const finalHost = typeof host === 'string' ? host : '::';
     this.#listenTcp(finalPort, finalHost);
   }
 
@@ -274,18 +198,23 @@ export class Fiber extends Router {
     this.#createReqHandler();
     const sockPath = typeof path === 'string' ? path : '/tmp/ufiber.sock';
     // Normalize: allow "sock", "./sock", "/full/path.sock"
-    const normalized = sockPath.startsWith('/') || sockPath.startsWith('./') ? sockPath : `./${sockPath}`;
+    const normalized =
+      sockPath.startsWith('/') || sockPath.startsWith('./')
+        ? sockPath
+        : `./${sockPath}`;
     this.#listenUnix(normalized);
   }
 
-  /** @internal Internal method to start server on tcp. */
   #listenTcp(port: number, host: string) {
     this.uwsApp.listen(host, port, socket => {
-      if (!socket) throw new Error(`Failed to listen on port ${port}.  No permission or already in use.`);
+      if (!socket)
+        throw new Error(
+          `Failed to listen on port ${port}.  No permission or already in use.`,
+        );
       const protocol = this.isSSL ? 'https' : 'http';
       const realPort = uWS.us_socket_local_port(socket);
       const url = `${protocol}://${host}:${realPort}`;
-      showBanner({
+      printBanner({
         url,
         host,
         version,
@@ -295,14 +224,15 @@ export class Fiber extends Router {
     });
   }
 
-  /** @internal Internal method to start server on unix-socket. */
   #listenUnix(path: string) {
-    const normalized = path.startsWith('/') || path.startsWith('./') ? path : `./${path}`;
+    const normalized =
+      path.startsWith('/') || path.startsWith('./') ? path : `./${path}`;
     this.uwsApp.listen_unix(socket => {
-      if (!socket) throw new Error(`Failed to listen on unix socket: ${normalized}`);
+      if (!socket)
+        throw new Error(`Failed to listen on unix socket: ${normalized}`);
       const display = normalized.replace(/^(\.\/|\/)+/, '');
       const url = `unix://${display}`;
-      showBanner({
+      printBanner({
         url,
         version,
         startTime: this.#startTime,

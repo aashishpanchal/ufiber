@@ -1,12 +1,17 @@
-import type {Context} from '@/core';
+import type {Context} from '@/http';
 import type {Middleware} from '@/types';
 
 type CORSOptions = {
   origin:
     | string
     | string[]
-    | ((origin: string, c: Context) => Promise<string | undefined | null> | string | undefined | null);
-  allowMethods?: string[] | ((origin: string, c: Context) => Promise<string[]> | string[]);
+    | ((
+        origin: string,
+        c: Context,
+      ) => Promise<string | undefined | null> | string | undefined | null);
+  allowMethods?:
+    | string[]
+    | ((origin: string, c: Context) => Promise<string[]> | string[]);
   allowHeaders?: string[];
   maxAge?: number;
   credentials?: boolean;
@@ -79,13 +84,13 @@ export const corsOrigin = (options?: CORSOptions): Middleware => {
     const origin = ctx.req.header('origin') || '';
     const allowOrigin = await findAllowOrigin(origin, ctx);
     if (allowOrigin) {
-      ctx.header('Access-Control-Allow-Origin', allowOrigin);
+      ctx.header('access-control-allow-origin', allowOrigin);
     }
     if (opts.credentials) {
-      ctx.header('Access-Control-Allow-Credentials', 'true');
+      ctx.header('access-control-allow-credentials', 'true');
     }
     if (opts.exposeHeaders?.length) {
-      ctx.header('Access-Control-Expose-Headers', opts.exposeHeaders.join(','));
+      ctx.header('access-control-expose-headers', opts.exposeHeaders.join(','));
     }
     if (ctx.req.method === 'OPTIONS') {
       // Vary header for caching
@@ -93,26 +98,26 @@ export const corsOrigin = (options?: CORSOptions): Middleware => {
         ctx.header('vary', 'Origin');
       }
       if (opts.maxAge !== undefined) {
-        ctx.header('Access-Control-Max-Age', opts.maxAge.toString());
+        ctx.header('access-control-max-age', opts.maxAge.toString());
       }
       const methods = await findAllowMethods(origin, ctx);
       if (methods.length) {
-        ctx.header('Access-Control-Allow-Methods', methods.join(','));
+        ctx.header('access-control-allow-methods', methods.join(','));
       }
       let headers = opts.allowHeaders;
       if (!headers?.length) {
-        const requestHeaders = ctx.req.header('Access-Control-Request-Headers');
+        const requestHeaders = ctx.req.header('access-control-request-headers');
         if (requestHeaders) {
           headers = requestHeaders.split(/\s*,\s*/);
         }
       }
       if (headers?.length) {
-        ctx.header('Access-Control-Allow-Headers', headers.join(','));
-        ctx.header('Vary', 'Access-Control-Request-Headers', true);
+        ctx.header('access-control-allow-headers', headers.join(','));
+        ctx.header('vary', 'access-control-request-headers', true);
       }
       ctx.status(204);
-      ctx.header('Content-Type');
-      ctx.header('Content-Length');
+      ctx.header('content-type');
+      ctx.header('content-length');
       return ctx.end();
     }
 
@@ -120,7 +125,7 @@ export const corsOrigin = (options?: CORSOptions): Middleware => {
 
     // Add Vary header for non-wildcard origins
     if (opts.origin !== '*') {
-      ctx.header('vary', 'Origin', true);
+      ctx.header('vary', 'origin', true);
     }
   };
 };

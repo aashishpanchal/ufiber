@@ -1,5 +1,5 @@
 import {UwsStream} from './utils';
-import type {Context} from '@/core';
+import type {Context} from '@/http';
 
 export type SSEMessage = {
   data: string | Promise<string>;

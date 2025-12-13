@@ -1,6 +1,11 @@
 import type {Middleware} from '@/types';
 
-type TrustProxy = boolean | number | string | string[] | ((ip: string) => boolean);
+type TrustProxy =
+  | boolean
+  | number
+  | string
+  | string[]
+  | ((ip: string) => boolean);
 
 /**
  * Trust Proxy Middleware for Fiber.

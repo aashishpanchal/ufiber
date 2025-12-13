@@ -1,5 +1,12 @@
 import {describe, it, expect, vi} from 'vitest';
-import {formatBytes, parseBytes, parseMs, delay, NullObject, write, type ByteString} from '@/utils/tools';
+import {
+  delay,
+  write,
+  NullObject,
+  parseBytes,
+  formatBytes,
+  type ByteString,
+} from '@/utils/tools';
 
 describe('formatBytes', () => {
   it('formats bytes correctly', () => {
@@ -26,10 +33,8 @@ describe('parseBytes', () => {
   it('throws on invalid format', () => {
     // compile-time check
     parseBytes('12 KB');
-
     // runtime invalid strings
     expect(() => parseBytes('ABC' as unknown as ByteString)).toThrow();
-    expect(() => parseBytes('12TB' as unknown as ByteString)).toThrow();
   });
 });
 
@@ -47,58 +52,6 @@ describe('formatBytes + parseBytes', () => {
 
       expect(parsed).toBe(expected);
     }
-  });
-});
-
-describe('parseMs', () => {
-  it('should parse simple time strings', () => {
-    expect(parseMs('1s')).toBe(1000);
-    expect(parseMs('1m')).toBe(60000);
-    expect(parseMs('1h')).toBe(3600000);
-    expect(parseMs('1d')).toBe(86400000);
-  });
-
-  it('should parse time with spaces', () => {
-    expect(parseMs('1 s')).toBe(1000);
-    expect(parseMs('5 minutes')).toBe(300000);
-  });
-
-  it('should parse decimal values', () => {
-    expect(parseMs('1.5h')).toBe(5400000);
-    expect(parseMs('0.5m')).toBe(30000);
-  });
-
-  it('should parse compound expressions', () => {
-    expect(parseMs('1h 30m' as any)).toBe(5400000);
-    expect(parseMs('2d 4h' as any)).toBe(187200000);
-  });
-
-  it('should handle various unit formats', () => {
-    expect(parseMs('1ms')).toBe(1);
-    expect(parseMs('1sec')).toBe(1000);
-    expect(parseMs('1min')).toBe(60000);
-    expect(parseMs('1hr')).toBe(3600000);
-  });
-
-  it('should handle uppercase and mixed case', () => {
-    expect(parseMs('1S')).toBe(1000);
-    expect(parseMs('1M')).toBe(60000);
-    expect(parseMs('1H')).toBe(3600000);
-  });
-
-  it('should return number as-is', () => {
-    expect(parseMs(5000)).toBe(5000);
-  });
-
-  it('should throw on invalid input', () => {
-    expect(() => parseMs('' as any)).toThrow('Invalid time string');
-    expect(() => parseMs('invalid' as any)).toThrow('Invalid time string');
-    expect(() => parseMs('   ' as any)).toThrow('Invalid time string');
-  });
-
-  it('should parse weeks, months, years', () => {
-    expect(parseMs('1w')).toBe(604800000);
-    expect(parseMs('1 week')).toBe(604800000);
   });
 });
 

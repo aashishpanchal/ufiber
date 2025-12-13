@@ -40,15 +40,29 @@ abstract class ZlibBase {
     }
     this.#instance = new (zlib as any)[type](options) as ZlibInstance;
     this.#buffer = [];
-    this.#kError = Object.getOwnPropertySymbols(this.#instance).find(x => x.toString().includes('kError')) as symbol;
-    this.#backups = [this.#instance.close, this.#instance._handle, this.#instance._handle!.close];
+    this.#kError = Object.getOwnPropertySymbols(this.#instance).find(x =>
+      x.toString().includes('kError'),
+    ) as symbol;
+    this.#backups = [
+      this.#instance.close,
+      this.#instance._handle,
+      this.#instance._handle!.close,
+    ];
   }
 
-  process(arrayBuffer: WithImplicitCoercion<ArrayBuffer | SharedArrayBuffer>, flag?: number): BufferArray;
-  process(data: Uint8Array | ReadonlyArray<number>, flag?: number): BufferArray;
-  process(data: WithImplicitCoercion<Uint8Array | ReadonlyArray<number> | string>, flag?: number): BufferArray;
   process(
-    string: WithImplicitCoercion<string> | {[Symbol.toPrimitive](hint: 'string'): string},
+    arrayBuffer: WithImplicitCoercion<ArrayBuffer | SharedArrayBuffer>,
+    flag?: number,
+  ): BufferArray;
+  process(data: Uint8Array | ReadonlyArray<number>, flag?: number): BufferArray;
+  process(
+    data: WithImplicitCoercion<Uint8Array | ReadonlyArray<number> | string>,
+    flag?: number,
+  ): BufferArray;
+  process(
+    string:
+      | WithImplicitCoercion<string>
+      | {[Symbol.toPrimitive](hint: 'string'): string},
     flag?: number,
   ): BufferArray;
   process(_data: any, _flag?: number): BufferArray {

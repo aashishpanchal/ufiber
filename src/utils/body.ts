@@ -87,7 +87,11 @@ export const isFileType = (v: any): v is FileType =>
 /**
  * Parse multipart/form-data bodies from a readable stream.
  */
-export const formParse = (buf: Buffer, cType: string, options: FormOption = {}): FormData => {
+export const formParse = (
+  buf: Buffer,
+  cType: string,
+  options: FormOption = {},
+): FormData => {
   const {files = 5, fileSize = 5 * 1024 * 1024, fileFields} = options;
   const form = new FormData();
   // Parse data
@@ -107,14 +111,24 @@ export const formParse = (buf: Buffer, cType: string, options: FormOption = {}):
       // === File field ===
       fileCount++;
       if (fileCount > files)
-        throw new Error(`Too many files uploaded. Maximum allowed: ${files}, received: ${fileCount}`);
-      if (fileFields && !((Array.isArray(fileFields) && fileFields.includes(name)) || fileFields === name))
+        throw new Error(
+          `Too many files uploaded. Maximum allowed: ${files}, received: ${fileCount}`,
+        );
+      if (
+        fileFields &&
+        !(
+          (Array.isArray(fileFields) && fileFields.includes(name)) ||
+          fileFields === name
+        )
+      )
         throw new Error(`File upload not allowed for field '${name}'`);
       if (buffer.byteLength > fileSize)
         throw new RangeError(
           `File '${filename}' is ${formatBytes(buffer.byteLength)}, max allowed ${formatBytes(fileSize)}`,
         );
-      const ext = filename.includes('.') ? filename.split('.').pop()!.toLowerCase().slice(0, 10) : '';
+      const ext = filename.includes('.')
+        ? filename.split('.').pop()!.toLowerCase().slice(0, 10)
+        : '';
       const fileInfo: FileType = {
         filename,
         mimeType: mimeType.slice(0, 100),

@@ -1,7 +1,7 @@
+import {bytes} from '@/utils/tools';
 import {Readable} from 'node:stream';
 import {decompress} from '@/utils/zlib';
 import {HIGH_WATER_MARK} from '@/consts';
-import {formatBytes} from '@/utils/tools';
 import type {HttpResponse} from '../../uws';
 import type {BufferArray, CompressFormat} from '@/types';
 import {BadRequestError, ContentTooLargeError} from '@/errors';
@@ -26,7 +26,11 @@ export class UwsReadable extends Readable {
   #completed = false;
   #inflate: ReturnType<typeof decompress> = null;
 
-  constructor(res: HttpResponse, format?: CompressFormat, bodyLimit?: number) {
+  constructor(
+    res: HttpResponse,
+    format?: CompressFormat,
+    bodyLimit?: number | null,
+  ) {
     super({highWaterMark: HIGH_WATER_MARK});
     this.#inflate = decompress(format);
     if (this.#inflate === false) {
@@ -36,9 +40,7 @@ export class UwsReadable extends Readable {
     res.onData((chunk, isLast) => {
       if (this.destroyed) return;
       // We MUST copy the data of chunk if isLast is not true.
-      let buf = isLast
-        ? Buffer.from(chunk) // safe, no extra copy
-        : Buffer.from(new Uint8Array(chunk)); // required copy
+      let buf = Buffer.from(new Uint8Array(chunk)); // required copy
       // Decompress data if client give compress data
       if (this.#inflate) {
         try {
@@ -50,18 +52,24 @@ export class UwsReadable extends Readable {
           if (this.#inflate) {
             this.#inflate.close();
           }
-          this.destroy(new BadRequestError(`Decompression failed: ${err.message}`));
+          this.destroy(
+            new BadRequestError(`Decompression failed: ${err.message}`),
+          );
           return;
         }
       }
       this.#uwsRead.chunks.push(buf);
       this.#uwsRead.bytes += buf.length;
       // Exceeded allowed body size -> destroy stream with error
-      if (typeof bodyLimit !== 'undefined' && this.#uwsRead.bytes > bodyLimit) {
+      if (
+        bodyLimit !== null &&
+        typeof bodyLimit !== 'undefined' &&
+        this.#uwsRead.bytes > bodyLimit
+      ) {
         if (this.#inflate) this.#inflate.close();
         this.destroy(
           new ContentTooLargeError(
-            `Request body ${formatBytes(this.#uwsRead.bytes)} exceeds limit: ${formatBytes(bodyLimit)}`,
+            `Request body ${bytes(this.#uwsRead.bytes)} exceeds limit: ${bytes(bodyLimit)}`,
           ),
         );
         return;
@@ -70,7 +78,11 @@ export class UwsReadable extends Readable {
         this.#uwsRead.isDone = true;
         // If buffer-mode or there's a listener for 'complete' and not using stream, trigger complete
         // Also ensure we don't mix with stream mode.
-        if (!this.#completed && !this.#usedStream && (this.#usedBuffer || this.listenerCount('complete') > 0)) {
+        if (
+          !this.#completed &&
+          !this.#usedStream &&
+          (this.#usedBuffer || this.listenerCount('complete') > 0)
+        ) {
           this.#complete();
         }
       }
@@ -85,7 +97,9 @@ export class UwsReadable extends Readable {
 
   _read() {
     if (this.#usedBuffer) {
-      this.destroy(new Error('Cannot read stream after getBuffer() has been called'));
+      this.destroy(
+        new Error('Cannot read stream after getBuffer() has been called'),
+      );
       return;
     }
     this.#usedStream = true;
@@ -106,7 +120,8 @@ export class UwsReadable extends Readable {
       }
     }
     // If all chunks sent and request fully received → end stream
-    if (this.#uwsRead.isDone && this.#uwsRead.chunks.length === 0) this.push(null);
+    if (this.#uwsRead.isDone && this.#uwsRead.chunks.length === 0)
+      this.push(null);
     // If we ran out of chunks but more data might come later
     else if (this.#uwsRead.chunks.length === 0) this.#needsData = true;
   }
@@ -127,7 +142,8 @@ export class UwsReadable extends Readable {
   once(event: string | symbol, listener: (...args: any[]) => void) {
     if (event === 'complete') {
       // Prevent mixing stream mode with buffer mode
-      if (this.#usedStream) throw new Error('Cannot use complete event after stream has been read');
+      if (this.#usedStream)
+        throw new Error('Cannot use complete event after stream has been read');
       // If already completed, immediately call with cached body
       if (this.#completed && this.#uwsRead.buffer) {
         queueMicrotask(() => listener(this.#uwsRead.buffer!));
@@ -143,19 +159,15 @@ export class UwsReadable extends Readable {
 
   #bodyBuf(): BufferArray {
     if (this.#uwsRead.buffer) return this.#uwsRead.buffer;
-    // Optimize for common cases
     const chunksLen = this.#uwsRead.chunks.length;
     let buffer: BufferArray;
     if (chunksLen === 0) {
-      // If there's exactly one chunk, use it directly
       buffer = Buffer.allocUnsafe(0);
     } else if (chunksLen === 1) {
       buffer = this.#uwsRead.chunks[0]!;
     } else {
-      // Provide total length for optimal concat
       buffer = Buffer.concat(this.#uwsRead.chunks, this.#uwsRead.bytes);
     }
-    // Cache the buffer and clear chunks to free memory
     this.#uwsRead.buffer = buffer;
     this.#uwsRead.chunks.length = 0;
     return buffer;
@@ -175,7 +187,10 @@ export class UwsReadable extends Readable {
     return new Promise<BufferArray>((resolve, reject) => {
       if (this.#uwsRead.buffer) return resolve(this.#uwsRead.buffer);
       if (this.destroyed) return reject(new Error('Stream has been destroyed'));
-      if (this.#usedStream) return reject(new Error('Cannot get buffer after stream has been read'));
+      if (this.#usedStream)
+        return reject(
+          new Error('Cannot get buffer after stream has been read'),
+        );
       // Mark buffer mode permanently (prevents future streaming)
       this.#usedBuffer = true;
       // If already completed → return immediately

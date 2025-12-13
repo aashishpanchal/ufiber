@@ -1,4 +1,4 @@
-import type {Context} from '@/core';
+import type {Context} from '@/http';
 import {UwsStream, stream} from './utils';
 
 /**
@@ -51,10 +51,9 @@ export const streamText = async (
   callback: (stream: UwsStream) => Promise<void>,
   onError?: (e: Error, stream: UwsStream) => Promise<void>,
 ): Promise<void> => {
-  ctx.header('Connection', 'keep-alive');
-  ctx.header('Cache-Control', 'no-cache');
-  ctx.header('X-Content-Type-Options', 'nosniff');
-  ctx.header('Content-Type', 'text/plain; charset=utf-8');
-
+  ctx.header('connection', 'keep-alive');
+  ctx.header('cache-control', 'no-cache');
+  ctx.header('x-content-type-options', 'nosniff');
+  ctx.header('content-type', 'text/plain; charset=utf-8');
   return stream(ctx, callback, onError);
 };

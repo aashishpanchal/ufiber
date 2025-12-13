@@ -1,6 +1,6 @@
 {
   "name": "ufiber",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "type": "module",
   "description": "next-gen webserver for node-js developer",
   "main": "./dist/index.d.cjs",
@@ -45,15 +45,15 @@
       "types": "./uws/index.d.ts",
       "require": "./uws/uws.js"
     },
-    "./core": {
-      "import": "./dist/core/index.js",
-      "types": "./dist/core/index.d.ts",
-      "require": "./dist/core/index.cjs"
-    },
     "./tools": {
-      "import": "./dist/utils/tools/index.js",
-      "types": "./dist/utils/tools/index.d.ts",
-      "require": "./dist/utils/tools/index.cjs"
+      "import": "./dist/utils/tools.js",
+      "types": "./dist/utils/tools.d.ts",
+      "require": "./dist/utils/tools.cjs"
+    },
+    "./stream": {
+      "import": "./dist/stream/index.js",
+      "types": "./dist/stream/index.d.ts",
+      "require": "./dist/stream/index.cjs"
     },
     "./logger": {
       "import": "./dist/middle/logger.js",
@@ -70,10 +70,10 @@
       "types": "./dist/middle/proxy.d.ts",
       "require": "./dist/middle/proxy.cjs"
     },
-    "./stream": {
-      "import": "./dist/helps/stream/index.js",
-      "types": "./dist/helps/stream/index.d.ts",
-      "require": "./dist/helps/stream/index.cjs"
+    "./powered-by": {
+      "import": "./dist/middle/powered-by.js",
+      "types": "./dist/middle/powered-by.d.ts",
+      "require": "./dist/middle/powered-by.cjs"
     }
   },
   "typesVersions": {
@@ -87,9 +87,6 @@
       "consts": [
         "./dist/consts.d.ts"
       ],
-      "core": [
-        "./dist/core/index.d.ts"
-      ],
       "cors": [
         "./dist/middle/cors.d.ts"
       ],
@@ -100,10 +97,13 @@
         "./dist/middle/logger.d.ts"
       ],
       "tools": [
-        "./dist/utils/tools/index.d.ts"
+        "./dist/utils/tools.d.ts"
       ],
       "stream": [
-        "./dist/helps/stream/index.d.ts"
+        "./dist/stream/index.d.ts"
+      ],
+      "powered-by": [
+        "./dist/middle/powered-by.d.ts"
       ]
     }
   },

@@ -1,4 +1,4 @@
-import type {Context} from '@/core';
+import type {Context} from '@/http';
 import type {Result, RouterRoute} from '@/types';
 
 type MatchedHandlers = Result<RouterRoute>[0];

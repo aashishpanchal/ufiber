@@ -1,7 +1,6 @@
 import ansis from 'ansis';
-import {kCtxRes} from '@/consts';
-import {NullObject, write} from '@/utils/tools';
 import type {Middleware} from '@/types';
+import {NullObject, write} from '@/utils/tools';
 
 type Print = (msg: string) => void;
 
@@ -87,7 +86,9 @@ const formatDuration = (ms: number) => {
  */
 export const logger = (opts: Options = NullObject()): Middleware => {
   const ignore = opts.ignore ?? [];
-  const checkIgnore = ignore.length ? (path: string) => ignore.some(i => path.startsWith(i)) : () => false;
+  const checkIgnore = ignore.length
+    ? (path: string) => ignore.some(i => path.startsWith(i))
+    : () => false;
 
   const print = (msg: string) => {
     if (opts.printer) opts.printer(msg);
@@ -111,7 +112,7 @@ export const logger = (opts: Options = NullObject()): Middleware => {
     const delta = Date.now() - start;
 
     // Outgoing response
-    const status = ctx[kCtxRes].statusCode;
+    const status = ctx.statusCode;
     const s = colorStatus(status);
     const dur = formatDuration(delta);
 

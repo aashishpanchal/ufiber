@@ -1,9 +1,11 @@
-import {tryDecode} from '@/utils/url';
+import {tryDecode} from '../url';
 
 export type Cookie = Record<string, string>;
 export type SignedCookie = Record<string, string | false>;
 
-type PartitionedCookieConstraint = {partitioned: true; secure: true} | {partitioned?: boolean; secure?: boolean};
+type PartitionedCookieConstraint =
+  | {partitioned: true; secure: true}
+  | {partitioned?: boolean; secure?: boolean};
 type SecureCookieConstraint = {secure: true};
 type HostCookieConstraint = {secure: true; path: '/'; domain?: undefined};
 
@@ -31,26 +33,48 @@ export type CookieConstraint<Name> = Name extends `__Secure-${string}`
 // HMAC-SHA256 algorithm for signed cookies
 const algorithm = {name: 'HMAC', hash: 'SHA-256'};
 
-const getCryptoKey = async (secret: string | BufferSource): Promise<CryptoKey> => {
-  const secretBuf = typeof secret === 'string' ? new TextEncoder().encode(secret) : secret;
-  return await crypto.subtle.importKey('raw', secretBuf, algorithm, false, ['sign', 'verify']);
+const getCryptoKey = async (
+  secret: string | BufferSource,
+): Promise<CryptoKey> => {
+  const secretBuf =
+    typeof secret === 'string' ? new TextEncoder().encode(secret) : secret;
+  return await crypto.subtle.importKey('raw', secretBuf, algorithm, false, [
+    'sign',
+    'verify',
+  ]);
 };
 
-const makeSignature = async (value: string, secret: string | BufferSource): Promise<string> => {
+const makeSignature = async (
+  value: string,
+  secret: string | BufferSource,
+): Promise<string> => {
   const key = await getCryptoKey(secret);
-  const signature = await crypto.subtle.sign(algorithm.name, key, new TextEncoder().encode(value));
+  const signature = await crypto.subtle.sign(
+    algorithm.name,
+    key,
+    new TextEncoder().encode(value),
+  );
   // The returned base64 encoded signature will always be 44 characters long and end with one or two equal signs
   return btoa(String.fromCharCode(...new Uint8Array(signature)));
 };
 
-const verifySignature = async (base64Signature: string, value: string, secret: CryptoKey): Promise<boolean> => {
+const verifySignature = async (
+  base64Signature: string,
+  value: string,
+  secret: CryptoKey,
+): Promise<boolean> => {
   try {
     const signatureBinStr = atob(base64Signature);
     const signature = new Uint8Array(signatureBinStr.length);
     for (let i = 0, len = signatureBinStr.length; i < len; i++) {
       signature[i] = signatureBinStr.charCodeAt(i);
     }
-    return await crypto.subtle.verify(algorithm, secret, signature, new TextEncoder().encode(value));
+    return await crypto.subtle.verify(
+      algorithm,
+      secret,
+      signature,
+      new TextEncoder().encode(value),
+    );
   } catch {
     return false;
   }
@@ -82,7 +106,10 @@ export const parse = (cookie: string, name?: string): Cookie => {
     }
 
     const cookieName = pairStr.substring(0, valueStartPos).trim();
-    if ((name && name !== cookieName) || !validCookieNameRegEx.test(cookieName)) {
+    if (
+      (name && name !== cookieName) ||
+      !validCookieNameRegEx.test(cookieName)
+    ) {
       continue;
     }
 
@@ -92,7 +119,9 @@ export const parse = (cookie: string, name?: string): Cookie => {
     }
     if (validCookieValueRegEx.test(cookieValue)) {
       parsedCookie[cookieName] =
-        cookieValue.indexOf('%') !== -1 ? tryDecode(cookieValue, decodeURIComponent) : cookieValue;
+        cookieValue.indexOf('%') !== -1
+          ? tryDecode(cookieValue, decodeURIComponent)
+          : cookieValue;
       if (name) {
         // Fast-path: return only the demanded-key immediately. Other keys are not needed.
         break;
@@ -129,7 +158,11 @@ export const parseSigned = async (
   return parsedCookie;
 };
 
-const _serialize = (name: string, value: string, opt: CookieOptions = {}): string => {
+const _serialize = (
+  name: string,
+  value: string,
+  opt: CookieOptions = {},
+): string => {
   let cookie = `${name}=${value}`;
 
   if (name.startsWith('__Secure-') && !opt.secure) {
@@ -155,7 +188,9 @@ const _serialize = (name: string, value: string, opt: CookieOptions = {}): strin
   if (opt && typeof opt.maxAge === 'number' && opt.maxAge >= 0) {
     if (opt.maxAge > 34560000) {
       // https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis-13#section-4.1.2.2
-      throw new Error('Cookies Max-Age SHOULD NOT be greater than 400 days (34560000 seconds) in duration.');
+      throw new Error(
+        'Cookies Max-Age SHOULD NOT be greater than 400 days (34560000 seconds) in duration.',
+      );
     }
     cookie += `; Max-Age=${opt.maxAge | 0}`;
   }
@@ -172,7 +207,9 @@ const _serialize = (name: string, value: string, opt: CookieOptions = {}): strin
     if (opt.expires.getTime() - Date.now() > 34560000_000) {
       // FIXME: replace link to RFC
       // https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis-13#section-4.1.2.1
-      throw new Error('Cookies Expires SHOULD NOT be greater than 400 days (34560000 seconds) in the future.');
+      throw new Error(
+        'Cookies Expires SHOULD NOT be greater than 400 days (34560000 seconds) in the future.',
+      );
     }
     cookie += `; Expires=${opt.expires.toUTCString()}`;
   }
@@ -204,7 +241,11 @@ const _serialize = (name: string, value: string, opt: CookieOptions = {}): strin
   return cookie;
 };
 
-export const serialize = <Name extends string>(name: Name, value: string, opt?: CookieConstraint<Name>): string => {
+export const serialize = <Name extends string>(
+  name: Name,
+  value: string,
+  opt?: CookieConstraint<Name>,
+): string => {
   value = encodeURIComponent(value);
   return _serialize(name, value, opt);
 };

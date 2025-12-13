@@ -1,6 +1,11 @@
-import type {Context} from '@/core/uws-ctx';
+import type {Context} from '@/http';
 import {parse, parseSigned, serialize, serializeSigned} from './parser';
-import type {Cookie, SignedCookie, CookieOptions, CookiePrefixOptions} from './parser';
+import type {
+  Cookie,
+  SignedCookie,
+  CookieOptions,
+  CookiePrefixOptions,
+} from './parser';
 
 export class CookieManager {
   constructor(private ctx: Context) {}
@@ -20,7 +25,7 @@ export class CookieManager {
 
   set(name: string, value: string, opt?: CookieOptions): void {
     const cookie = this.generate(name, value, opt);
-    this.ctx.header('Set-Cookie', cookie, true);
+    this.ctx.header('set-cookie', cookie, true);
   }
 
   delete(name: string, opt?: CookieOptions): string | undefined {
@@ -49,7 +54,11 @@ export class CookieManager {
     prefix?: CookiePrefixOptions,
   ): Promise<string | undefined | false>;
   async getSigned(secret: string | BufferSource): Promise<SignedCookie>;
-  async getSigned(secret: string | BufferSource, key?: string, prefix?: CookiePrefixOptions): Promise<any> {
+  async getSigned(
+    secret: string | BufferSource,
+    key?: string,
+    prefix?: CookiePrefixOptions,
+  ): Promise<any> {
     const cookie = this.ctx.req.header('cookie');
     if (!key) {
       return cookie ? parseSigned(cookie, secret) : {};
@@ -60,9 +69,14 @@ export class CookieManager {
     return obj[finalKey];
   }
 
-  async setSigned(name: string, value: string, secret: string | BufferSource, opt?: CookieOptions): Promise<void> {
+  async setSigned(
+    name: string,
+    value: string,
+    secret: string | BufferSource,
+    opt?: CookieOptions,
+  ): Promise<void> {
     const cookie = await this.generateSigned(name, value, secret, opt);
-    this.ctx.header('Set-Cookie', cookie, true);
+    this.ctx.header('set-cookie', cookie, true);
   }
 
   async generateSigned(

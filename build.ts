@@ -21,14 +21,14 @@ const entries: Options[] = [
     entry: [
       './src/index.ts',
       './src/consts.ts',
-      './src/core/index.ts',
+      './src/http/index.ts',
       './src/utils/tools.ts',
+      './src/stream/index.ts',
       // Middleware
       './src/middle/cors.ts',
       './src/middle/proxy.ts',
       './src/middle/logger.ts',
-      // helps
-      './src/helps/stream/index.ts',
+      './src/middle/powered-by.ts',
     ],
     external: [/.*\/uws$/, /^\.\.\/uws/, 'uws'],
   },
