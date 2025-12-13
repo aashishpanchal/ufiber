@@ -1,6 +1,6 @@
 {
   "name": "ufiber",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "type": "module",
   "description": "next-gen webserver for node-js developer",
   "main": "./dist/index.d.cjs",

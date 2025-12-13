@@ -5,6 +5,13 @@ import {Router, compose} from './router';
 import {printBanner} from './utils/banner';
 import {k404, k500, kMatch} from './consts';
 import {bytes, ByteString, NullObject} from './utils/tools';
+import type {
+  AppOptions,
+  HttpRequest,
+  HttpResponse,
+  TemplatedApp,
+  WebSocketBehavior,
+} from '../uws';
 
 export type FiberOptions = {
   http3?: boolean;
@@ -23,7 +30,7 @@ export type FiberOptions = {
    * If both `key_file_name` and `cert_file_name` are provided,
    * uFiber will automatically create an HTTPS (`SSLApp`) server.
    */
-  uwsOptions?: uWS.AppOptions;
+  uwsOptions?: AppOptions;
 };
 
 /**
@@ -35,7 +42,7 @@ export class Fiber extends Router {
    * Underlying uWebSockets.js `App` or `SSLApp` instance.
    * Useful for advanced / low-level operations.
    */
-  readonly uwsApp: uWS.TemplatedApp;
+  readonly uwsApp: TemplatedApp;
   /**
    * Whether this server is using HTTPS (true) or HTTP (false).
    */
@@ -95,11 +102,11 @@ export class Fiber extends Router {
    * });
    * ```
    */
-  ws<T>(pattern: string, behavior: uWS.WebSocketBehavior<T>): void {
+  ws<T>(pattern: string, behavior: WebSocketBehavior<T>): void {
     this.uwsApp.ws(pattern, behavior);
   }
 
-  getCtx(req: uWS.HttpRequest, res: uWS.HttpResponse): Context {
+  getCtx(req: HttpRequest, res: HttpResponse): Context {
     return new Context(req, res, {
       isSSL: this.isSSL,
       bodyLimit: this.#bodyLimit,
