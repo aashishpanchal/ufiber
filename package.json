@@ -3,8 +3,8 @@
   "version": "0.1.0-alpha.3",
   "type": "module",
   "description": "next-gen webserver for node-js developer",
-  "main": "./dist/index.d.cjs",
-  "module": "./dist/index.d.js",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
     "dist",

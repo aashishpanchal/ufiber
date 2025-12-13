@@ -22,8 +22,8 @@ const entries: Options[] = [
   {
     entry: [
       './src/index.ts',
+      './src/types.ts',
       './src/consts.ts',
-      './src/http/index.ts',
       './src/utils/tools.ts',
       './src/stream/index.ts',
       // Middleware
