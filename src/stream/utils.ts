@@ -58,7 +58,7 @@ export class UwsStream {
     if (s.pendingSize === 0) return;
     try {
       if (!this.#ctx.headerSent) {
-        this.#ctx.writeHead();
+        this.#ctx.writeHeader();
         this.#ctx.writeStatus();
       }
       // Write all pending chunks

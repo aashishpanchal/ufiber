@@ -1,6 +1,6 @@
 {
   "name": "ufiber",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "type": "module",
   "description": "next-gen webserver for node-js developer",
   "main": "./dist/index.d.cjs",
@@ -41,9 +41,9 @@
       "require": "./dist/consts.cjs"
     },
     "./uws": {
-      "import": "./uws/ESM_wrapper.mjs",
+      "import": "./uws/index.js",
       "types": "./uws/index.d.ts",
-      "require": "./uws/uws.js"
+      "require": "./uws/index.cjs"
     },
     "./tools": {
       "import": "./dist/utils/tools.js",
@@ -138,6 +138,7 @@
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
+    "glob": "^13.0.0",
     "globals": "^16.5.0",
     "husky": "^9.1.7",
     "prettier": "^3.7.4",

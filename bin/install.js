@@ -34,8 +34,6 @@ if (fs.existsSync(path.join(UWS_DIR, TARGET_FILE))) {
 const KEEP_FILES = new Set([
   'ESM_wrapper.mjs',
   'index.d.ts',
-  // 'LICENSE',
-  'package.json',
   'uws.js',
   TARGET_FILE,
 ]);
@@ -100,10 +98,26 @@ const extractTarGz = async (file, outDir) => {
   const nestedPath = path.join(tempDir, nested);
   for (const fileName of fs.readdirSync(nestedPath)) {
     if (KEEP_FILES.has(fileName)) {
-      fs.renameSync(
-        path.join(nestedPath, fileName),
-        path.join(outDir, fileName),
-      );
+      // Rename files for proper module resolution
+      let targetName = fileName;
+      if (fileName === 'ESM_wrapper.mjs') targetName = 'index.js';
+      else if (fileName === 'uws.js') targetName = 'index.cjs';
+
+      const sourcePath = path.join(nestedPath, fileName);
+      const targetPath = path.join(outDir, targetName);
+
+      // For ESM_wrapper.mjs, update import path before moving
+      if (fileName === 'ESM_wrapper.mjs') {
+        let content = fs.readFileSync(sourcePath, 'utf8');
+        content = content.replace(
+          /from\s+["']\.\/uws\.js["']/g,
+          'from "./index.cjs"',
+        );
+        fs.writeFileSync(targetPath, content);
+        fs.unlinkSync(sourcePath);
+      } else {
+        fs.renameSync(sourcePath, targetPath);
+      }
     }
   }
   fs.rmSync(tempDir, {recursive: true, force: true});
